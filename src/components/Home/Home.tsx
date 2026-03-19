@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   getWednesday,
   formatDate,
@@ -13,6 +14,7 @@ import type { DBRegistration, RaidComposition, RaidType } from '../../lib/types'
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
 
 export default function Home() {
+  const navigate = useNavigate();
   const [selectedWeek, setSelectedWeek] = useState(() => {
     return formatDate(getWednesday(new Date()));
   });
@@ -52,6 +54,10 @@ export default function Home() {
       setCompositions(results);
       setLoading(false);
     }, 50);
+  };
+
+  const handleEdit = (reg: DBRegistration) => {
+    navigate('/register', { state: { editRegistration: reg } });
   };
 
   const handleDelete = async (id: string) => {
@@ -164,12 +170,21 @@ export default function Home() {
                         캐릭터: {reg.characters.map(c => `${c.nickname}(${c.class_type}/${c.combat_power}K)`).join(', ')}
                       </span>
                     </div>
-                    <button
-                      onClick={() => handleDelete(reg.id)}
-                      className="text-red-500 text-sm hover:text-red-700"
-                    >
-                      삭제
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleEdit(reg)}
+                        className="text-indigo-500 text-sm hover:text-indigo-700"
+                      >
+                        수정
+                      </button>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        onClick={() => handleDelete(reg.id)}
+                        className="text-red-500 text-sm hover:text-red-700"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 ))}
                 {registrations.length === 0 && (

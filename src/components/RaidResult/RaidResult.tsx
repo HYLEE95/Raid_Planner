@@ -20,13 +20,16 @@ function formatDateWithDay(dateStr: string): string {
 
 function MemberCard({ member }: { member: RaidMember }) {
   const isBot = 'isBot' in member && member.isBot;
+  const isUnderpowered = !isBot && 'is_underpowered' in member && (member as any).is_underpowered;
 
   return (
     <div
       className={`flex items-center gap-2 p-2 rounded border ${
         isBot
           ? 'bg-gray-100 border-dashed border-gray-400'
-          : 'bg-white border-gray-200'
+          : isUnderpowered
+            ? 'bg-orange-50 border-orange-300'
+            : 'bg-white border-gray-200'
       }`}
     >
       <span
@@ -37,6 +40,9 @@ function MemberCard({ member }: { member: RaidMember }) {
       <span className={`text-sm font-medium ${isBot ? 'text-gray-400 italic' : 'text-gray-800'}`}>
         {member.nickname}
       </span>
+      {isUnderpowered && (
+        <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200">부캐</span>
+      )}
       <span className="text-xs text-gray-500 ml-auto">{member.combat_power}K</span>
       {!isBot && 'ownerName' in member && (
         <span className="text-xs text-gray-400">({member.ownerName})</span>

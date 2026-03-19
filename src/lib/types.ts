@@ -40,7 +40,8 @@ export interface Character {
   nickname: string;
   class_type: ClassType;
   combat_power: number; // 단위 K
-  can_clear_raid: boolean;
+  can_clear_raid: boolean;  // 공팟 가도 상관 없음
+  is_underpowered: boolean; // 공팟 스펙 미달(부캐)
 }
 
 export interface Owner {
@@ -77,7 +78,7 @@ export interface BotCharacter {
   combat_power: number;
 }
 
-export type RaidMember = (Character & { isBot?: false; ownerName: string }) | BotCharacter;
+export type RaidMember = (Character & { isBot?: false; ownerName: string; is_underpowered?: boolean }) | BotCharacter;
 
 export interface Team {
   members: RaidMember[];
@@ -95,7 +96,7 @@ export interface RaidGroup {
 
 export interface RaidComposition {
   raids: RaidGroup[];
-  excludedCharacters: (Character & { ownerName: string })[];
+  excludedCharacters: (Character & { ownerName: string; is_underpowered?: boolean })[];
   score: number;
 }
 
@@ -109,6 +110,7 @@ export interface DBRegistration {
     class_type: ClassType;
     combat_power: number;
     can_clear_raid: boolean;
+    is_underpowered: boolean;
   }[];
   week_start: string;
   time_slots: TimeSlot[];

@@ -147,22 +147,27 @@ export function formatWeekLabel(weekStartStr: string): string {
   const month = d.getMonth() + 1;
   const day = d.getDate();
 
-  // n주차: 해당 월에서 몇 번째 주인지 (수요일 기준)
+  // n주차: 해당 월의 첫째 수요일부터 카운트
   const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-  const firstWed = new Date(firstOfMonth);
   const fDay = firstOfMonth.getDay();
   const toWed = fDay <= 3 ? 3 - fDay : 7 - fDay + 3;
+  const firstWed = new Date(firstOfMonth);
   firstWed.setDate(firstOfMonth.getDate() + toWed);
 
-  let weekNum = 1;
-  const tempWed = new Date(firstWed);
-  while (tempWed < d) {
-    tempWed.setDate(tempWed.getDate() + 7);
-    weekNum++;
-  }
-  // d가 정확히 tempWed와 같으면 해당 주
-  if (tempWed.getTime() !== d.getTime() && weekNum > 1) {
-    // d가 firstWed 이전이면 이전 달의 마지막 주
+  let weekNum: number;
+  if (d.getTime() < firstWed.getTime()) {
+    // 해당 월의 첫 수요일 이전이면 이전 달의 마지막 주차
+    // 이전 달 기준으로 계산
+    const prevMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+    const pDay = prevMonth.getDay();
+    const toWedP = pDay <= 3 ? 3 - pDay : 7 - pDay + 3;
+    const firstWedPrev = new Date(prevMonth);
+    firstWedPrev.setDate(prevMonth.getDate() + toWedP);
+    weekNum = Math.floor((d.getTime() - firstWedPrev.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+    const prevMonthNum = prevMonth.getMonth() + 1;
+    return `${prevMonthNum}월 ${weekNum}주차 ${day}일 (수)`;
+  } else {
+    weekNum = Math.floor((d.getTime() - firstWed.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
   }
 
   return `${month}월 ${weekNum}주차 ${day}일 (수)`;
