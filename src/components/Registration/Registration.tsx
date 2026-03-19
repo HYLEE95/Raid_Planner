@@ -245,7 +245,8 @@ export default function Registration() {
 
       await saveRegistration(registration);
       setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setTimeout(() => setSaved(false), 5000);
 
       if (editId) {
         // 수정 완료 후 홈으로 이동
