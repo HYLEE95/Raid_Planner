@@ -91,3 +91,16 @@
 .dark .bg-green-100 {
   background-color: #003d00 !important;
 }
+
+/* 다크모드 일괄 설정 (indigo-50) */
+.dark .bg-indigo-50 {
+  background-color: #1e1b4b !important;
+}
+
+.dark .border-indigo-300 {
+  border-color: #4338ca !important;
+}
+
+.dark .text-indigo-700 {
+  color: #a5b4fc !important;
+}

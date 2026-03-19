@@ -494,7 +494,7 @@ export default function Registration() {
                 className="w-4 h-4 text-indigo-600"
               />
               <span className="text-sm font-semibold text-indigo-700">
-                모든 날짜 동일 시간 설정
+                시간 일괄 설정
               </span>
             </label>
 
@@ -502,7 +502,7 @@ export default function Registration() {
               <div className="p-3 border-2 border-indigo-300 rounded-lg bg-indigo-50">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-indigo-700">공통 시간 설정</span>
+                    <span className="text-sm font-bold text-indigo-700">일괄 설정</span>
                     <label className="flex items-center gap-1.5 cursor-pointer">
                       <input
                         type="checkbox"
