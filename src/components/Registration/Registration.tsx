@@ -52,6 +52,7 @@ export default function Registration() {
     return formatDate(getWednesday(new Date()));
   });
   const [dateSelections, setDateSelections] = useState<DateTimeSelection[]>([]);
+  const [useBatchTime, setUseBatchTime] = useState(false);
   const [batchAllDay, setBatchAllDay] = useState(false);
   const [batchTimeRanges, setBatchTimeRanges] = useState<{ start: string; end: string }[]>([
     { start: '20:00', end: '23:00' },
@@ -193,9 +194,14 @@ export default function Registration() {
     if (!ownerName.trim()) return false;
     if (characters.some(c => !c.nickname.trim() || c.combat_power <= 0)) return false;
     if (dateSelections.length === 0) return false;
-    if (dateSelections.some(d => !d.allDay && d.timeRanges.length === 0)) return false;
-    // 시간 유효성: 시작 < 종료 (시간 무관이 아닌 경우만)
-    if (dateSelections.some(d => !d.allDay && d.timeRanges.some(tr => tr.start >= tr.end))) return false;
+    if (useBatchTime) {
+      // 일괄 설정 모드 유효성
+      if (!batchAllDay && batchTimeRanges.length === 0) return false;
+      if (!batchAllDay && batchTimeRanges.some(tr => tr.start >= tr.end)) return false;
+    } else {
+      if (dateSelections.some(d => !d.allDay && d.timeRanges.length === 0)) return false;
+      if (dateSelections.some(d => !d.allDay && d.timeRanges.some(tr => tr.start >= tr.end))) return false;
+    }
     // 닉네임 중복 체크
     const nicknames = characters.map(c => c.nickname.trim());
     if (new Set(nicknames).size !== nicknames.length) return false;
@@ -209,19 +215,20 @@ export default function Registration() {
     try {
       const timeSlotList: TimeSlot[] = [];
       for (const ds of dateSelections) {
-        if (ds.allDay) {
-          timeSlotList.push({
-            date: ds.date,
-            start_time: '00:00',
-            end_time: '23:30',
-          });
+        if (useBatchTime) {
+          // 일괄 설정 사용
+          if (batchAllDay) {
+            timeSlotList.push({ date: ds.date, start_time: '00:00', end_time: '23:30' });
+          } else {
+            for (const tr of batchTimeRanges) {
+              timeSlotList.push({ date: ds.date, start_time: tr.start, end_time: tr.end });
+            }
+          }
+        } else if (ds.allDay) {
+          timeSlotList.push({ date: ds.date, start_time: '00:00', end_time: '23:30' });
         } else {
           for (const tr of ds.timeRanges) {
-            timeSlotList.push({
-              date: ds.date,
-              start_time: tr.start,
-              end_time: tr.end,
-            });
+            timeSlotList.push({ date: ds.date, start_time: tr.start, end_time: tr.end });
           }
         }
       }
@@ -476,107 +483,99 @@ export default function Registration() {
           })}
         </div>
 
-        {/* 일괄 설정 (2개 이상 날짜 선택 시) */}
+        {/* 일괄 설정 체크박스 (2개 이상 날짜 선택 시) */}
         {dateSelections.length >= 2 && (
-          <div className="mb-4 p-3 border-2 border-indigo-300 rounded-lg bg-indigo-50">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-bold text-indigo-700">
-                  선택된 {dateSelections.length}일 일괄 설정
-                </span>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={batchAllDay}
-                    onChange={() => setBatchAllDay(!batchAllDay)}
-                    className="w-3.5 h-3.5 text-indigo-600"
-                  />
-                  <span className="text-xs text-gray-500">시간 무관</span>
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                {!batchAllDay && (
-                  <button
-                    onClick={() => setBatchTimeRanges([...batchTimeRanges, { start: '20:00', end: '23:00' }])}
-                    className="text-xs text-indigo-600 hover:text-indigo-800"
-                  >
-                    + 시간대 추가
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    if (batchAllDay) {
-                      setDateSelections(
-                        dateSelections.map(d => ({ ...d, allDay: true, timeRanges: [{ start: '00:00', end: '23:30' }] }))
-                      );
-                    } else {
-                      setDateSelections(
-                        dateSelections.map(d => ({
-                          ...d,
-                          allDay: false,
-                          timeRanges: batchTimeRanges.map(tr => ({ ...tr })),
-                        }))
-                      );
-                    }
-                  }}
-                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors"
-                >
-                  일괄 적용
-                </button>
-              </div>
-            </div>
+          <div className="mb-4">
+            <label className="flex items-center gap-2 cursor-pointer mb-3">
+              <input
+                type="checkbox"
+                checked={useBatchTime}
+                onChange={() => setUseBatchTime(!useBatchTime)}
+                className="w-4 h-4 text-indigo-600"
+              />
+              <span className="text-sm font-semibold text-indigo-700">
+                모든 날짜 동일 시간 설정
+              </span>
+            </label>
 
-            {batchAllDay ? (
-              <div className="text-sm text-gray-400 italic py-1">모든 시간대 가능</div>
-            ) : (
-              batchTimeRanges.map((tr, idx) => (
-                <div key={idx} className="flex items-center gap-2 mb-2">
-                  <select
-                    value={tr.start}
-                    onChange={e => {
-                      const updated = [...batchTimeRanges];
-                      updated[idx] = { ...updated[idx], start: e.target.value };
-                      setBatchTimeRanges(updated);
-                    }}
-                    className="p-1.5 border border-gray-300 rounded text-sm bg-white"
-                  >
-                    {timeSlots.map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                  <span className="text-gray-500">~</span>
-                  <select
-                    value={tr.end}
-                    onChange={e => {
-                      const updated = [...batchTimeRanges];
-                      updated[idx] = { ...updated[idx], end: e.target.value };
-                      setBatchTimeRanges(updated);
-                    }}
-                    className="p-1.5 border border-gray-300 rounded text-sm bg-white"
-                  >
-                    {timeSlots.map(t => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                  {batchTimeRanges.length > 1 && (
+            {useBatchTime && (
+              <div className="p-3 border-2 border-indigo-300 rounded-lg bg-indigo-50">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-bold text-indigo-700">공통 시간 설정</span>
+                    <label className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={batchAllDay}
+                        onChange={() => setBatchAllDay(!batchAllDay)}
+                        className="w-3.5 h-3.5 text-indigo-600"
+                      />
+                      <span className="text-xs text-gray-500">시간 무관</span>
+                    </label>
+                  </div>
+                  {!batchAllDay && (
                     <button
-                      onClick={() => setBatchTimeRanges(batchTimeRanges.filter((_, i) => i !== idx))}
-                      className="text-red-400 text-xs hover:text-red-600"
+                      onClick={() => setBatchTimeRanges([...batchTimeRanges, { start: '20:00', end: '23:00' }])}
+                      className="text-xs text-indigo-600 hover:text-indigo-800"
                     >
-                      삭제
+                      + 시간대 추가
                     </button>
                   )}
-                  {tr.start >= tr.end && (
-                    <span className="text-red-500 text-xs">시작 시간이 종료보다 빨라야 합니다</span>
-                  )}
                 </div>
-              ))
+
+                {batchAllDay ? (
+                  <div className="text-sm text-gray-400 italic py-1">모든 시간대 가능</div>
+                ) : (
+                  batchTimeRanges.map((tr, idx) => (
+                    <div key={idx} className="flex items-center gap-2 mb-2">
+                      <select
+                        value={tr.start}
+                        onChange={e => {
+                          const updated = [...batchTimeRanges];
+                          updated[idx] = { ...updated[idx], start: e.target.value };
+                          setBatchTimeRanges(updated);
+                        }}
+                        className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+                      >
+                        {timeSlots.map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                      <span className="text-gray-500">~</span>
+                      <select
+                        value={tr.end}
+                        onChange={e => {
+                          const updated = [...batchTimeRanges];
+                          updated[idx] = { ...updated[idx], end: e.target.value };
+                          setBatchTimeRanges(updated);
+                        }}
+                        className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+                      >
+                        {timeSlots.map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                      {batchTimeRanges.length > 1 && (
+                        <button
+                          onClick={() => setBatchTimeRanges(batchTimeRanges.filter((_, i) => i !== idx))}
+                          className="text-red-400 text-xs hover:text-red-600"
+                        >
+                          삭제
+                        </button>
+                      )}
+                      {tr.start >= tr.end && (
+                        <span className="text-red-500 text-xs">시작 시간이 종료보다 빨라야 합니다</span>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
             )}
           </div>
         )}
 
-        {/* 시간대 선택 */}
-        {dateSelections
+        {/* 개별 날짜 시간대 선택 (일괄 설정 미사용 시에만 표시) */}
+        {!useBatchTime && dateSelections
           .sort((a, b) => a.date.localeCompare(b.date))
           .map(ds => {
             const date = new Date(ds.date + 'T00:00:00');
