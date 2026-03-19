@@ -170,7 +170,7 @@ export default function Home() {
               onClick={() => setShowRegistrations(!showRegistrations)}
               className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
             >
-              {showRegistrations ? '신청자 목록 숨기기' : '신청자 목록 보기'} ({registrations.length}명)
+              {showRegistrations ? '신청자 목록 숨기기' : '신청자 목록 보기'} ({registrations.length}명|{registrations.reduce((s, r) => s + r.characters.length, 0)}캐릭)
             </button>
 
             {showRegistrations && (
