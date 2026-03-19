@@ -3,7 +3,8 @@ import { NavLink, Outlet } from 'react-router-dom';
 
 export default function Layout() {
   const [dark, setDark] = useState(() => {
-    return localStorage.getItem('theme') === 'dark';
+    const saved = localStorage.getItem('theme');
+    return saved ? saved === 'dark' : true; // 기본값 다크모드
   });
 
   useEffect(() => {
