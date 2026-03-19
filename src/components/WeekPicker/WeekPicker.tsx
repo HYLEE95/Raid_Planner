@@ -101,7 +101,7 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
 
       {/* 캘린더 드롭다운 */}
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-[300px]">
+        <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-[300px] week-picker-dropdown">
           {/* 월 네비게이션 */}
           <div className="flex items-center justify-between mb-2">
             <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded text-gray-600">

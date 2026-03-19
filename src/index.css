@@ -104,3 +104,31 @@
 .dark .text-indigo-700 {
   color: #a5b4fc !important;
 }
+
+/* 다크모드 캘린더 드롭다운 */
+.dark .week-picker-dropdown {
+  background-color: #16213e !important;
+  border-color: #334155 !important;
+}
+
+.dark .week-picker-dropdown button {
+  color: #cbd5e1 !important;
+}
+
+.dark .week-picker-dropdown button:hover {
+  background-color: #1e2a47 !important;
+}
+
+.dark .week-picker-dropdown .bg-indigo-600 {
+  background-color: #4f46e5 !important;
+  color: white !important;
+}
+
+.dark .week-picker-dropdown .bg-indigo-100 {
+  background-color: #312e81 !important;
+  color: #a5b4fc !important;
+}
+
+.dark .week-picker-dropdown .border-gray-100 {
+  border-color: #1e293b !important;
+}
