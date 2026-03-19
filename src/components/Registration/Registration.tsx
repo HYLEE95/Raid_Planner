@@ -472,6 +472,65 @@ export default function Registration() {
           })}
         </div>
 
+        {/* 일괄 설정 (2개 이상 날짜 선택 시) */}
+        {dateSelections.length >= 2 && (
+          <div className="mb-4 p-3 border-2 border-indigo-300 rounded-lg bg-indigo-50">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold text-indigo-700">선택된 {dateSelections.length}일 일괄 설정</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <select
+                id="batch-start"
+                defaultValue="20:00"
+                className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+              >
+                {timeSlots.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <span className="text-gray-500">~</span>
+              <select
+                id="batch-end"
+                defaultValue="23:00"
+                className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+              >
+                {timeSlots.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => {
+                  const startEl = document.getElementById('batch-start') as HTMLSelectElement;
+                  const endEl = document.getElementById('batch-end') as HTMLSelectElement;
+                  if (!startEl || !endEl) return;
+                  const start = startEl.value;
+                  const end = endEl.value;
+                  setDateSelections(
+                    dateSelections.map(d => ({
+                      ...d,
+                      allDay: false,
+                      timeRanges: [{ start, end }],
+                    }))
+                  );
+                }}
+                className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors"
+              >
+                일괄 적용
+              </button>
+              <button
+                onClick={() => {
+                  setDateSelections(
+                    dateSelections.map(d => ({ ...d, allDay: true, timeRanges: [{ start: '00:00', end: '23:30' }] }))
+                  );
+                }}
+                className="px-3 py-1.5 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition-colors"
+              >
+                전체 시간 무관
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* 시간대 선택 */}
         {dateSelections
           .sort((a, b) => a.date.localeCompare(b.date))
