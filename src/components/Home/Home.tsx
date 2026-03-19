@@ -138,6 +138,17 @@ export default function Home() {
               </svg>
               공격대 배치
             </button>
+            {compositions.length > 0 && (
+              <button
+                onClick={() => { setCompositions([]); setInsufficientMsg(''); }}
+                className="px-3 py-2.5 rounded-lg font-semibold text-red-600 bg-white border border-red-300 hover:bg-red-50 active:bg-red-100 transition-colors flex items-center gap-1.5"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                배치 초기화
+              </button>
+            )}
           </div>
 
           {/* 통계 */}
