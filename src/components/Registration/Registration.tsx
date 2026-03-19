@@ -52,6 +52,10 @@ export default function Registration() {
     return formatDate(getWednesday(new Date()));
   });
   const [dateSelections, setDateSelections] = useState<DateTimeSelection[]>([]);
+  const [batchAllDay, setBatchAllDay] = useState(false);
+  const [batchTimeRanges, setBatchTimeRanges] = useState<{ start: string; end: string }[]>([
+    { start: '20:00', end: '23:00' },
+  ]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -476,58 +480,98 @@ export default function Registration() {
         {dateSelections.length >= 2 && (
           <div className="mb-4 p-3 border-2 border-indigo-300 rounded-lg bg-indigo-50">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-indigo-700">선택된 {dateSelections.length}일 일괄 설정</span>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-bold text-indigo-700">
+                  선택된 {dateSelections.length}일 일괄 설정
+                </span>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={batchAllDay}
+                    onChange={() => setBatchAllDay(!batchAllDay)}
+                    className="w-3.5 h-3.5 text-indigo-600"
+                  />
+                  <span className="text-xs text-gray-500">시간 무관</span>
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                {!batchAllDay && (
+                  <button
+                    onClick={() => setBatchTimeRanges([...batchTimeRanges, { start: '20:00', end: '23:00' }])}
+                    className="text-xs text-indigo-600 hover:text-indigo-800"
+                  >
+                    + 시간대 추가
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    if (batchAllDay) {
+                      setDateSelections(
+                        dateSelections.map(d => ({ ...d, allDay: true, timeRanges: [{ start: '00:00', end: '23:30' }] }))
+                      );
+                    } else {
+                      setDateSelections(
+                        dateSelections.map(d => ({
+                          ...d,
+                          allDay: false,
+                          timeRanges: batchTimeRanges.map(tr => ({ ...tr })),
+                        }))
+                      );
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors"
+                >
+                  일괄 적용
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <select
-                id="batch-start"
-                defaultValue="20:00"
-                className="p-1.5 border border-gray-300 rounded text-sm bg-white"
-              >
-                {timeSlots.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-              <span className="text-gray-500">~</span>
-              <select
-                id="batch-end"
-                defaultValue="23:00"
-                className="p-1.5 border border-gray-300 rounded text-sm bg-white"
-              >
-                {timeSlots.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-              <button
-                onClick={() => {
-                  const startEl = document.getElementById('batch-start') as HTMLSelectElement;
-                  const endEl = document.getElementById('batch-end') as HTMLSelectElement;
-                  if (!startEl || !endEl) return;
-                  const start = startEl.value;
-                  const end = endEl.value;
-                  setDateSelections(
-                    dateSelections.map(d => ({
-                      ...d,
-                      allDay: false,
-                      timeRanges: [{ start, end }],
-                    }))
-                  );
-                }}
-                className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors"
-              >
-                일괄 적용
-              </button>
-              <button
-                onClick={() => {
-                  setDateSelections(
-                    dateSelections.map(d => ({ ...d, allDay: true, timeRanges: [{ start: '00:00', end: '23:30' }] }))
-                  );
-                }}
-                className="px-3 py-1.5 bg-gray-500 text-white text-sm rounded hover:bg-gray-600 transition-colors"
-              >
-                전체 시간 무관
-              </button>
-            </div>
+
+            {batchAllDay ? (
+              <div className="text-sm text-gray-400 italic py-1">모든 시간대 가능</div>
+            ) : (
+              batchTimeRanges.map((tr, idx) => (
+                <div key={idx} className="flex items-center gap-2 mb-2">
+                  <select
+                    value={tr.start}
+                    onChange={e => {
+                      const updated = [...batchTimeRanges];
+                      updated[idx] = { ...updated[idx], start: e.target.value };
+                      setBatchTimeRanges(updated);
+                    }}
+                    className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+                  >
+                    {timeSlots.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  <span className="text-gray-500">~</span>
+                  <select
+                    value={tr.end}
+                    onChange={e => {
+                      const updated = [...batchTimeRanges];
+                      updated[idx] = { ...updated[idx], end: e.target.value };
+                      setBatchTimeRanges(updated);
+                    }}
+                    className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+                  >
+                    {timeSlots.map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                  {batchTimeRanges.length > 1 && (
+                    <button
+                      onClick={() => setBatchTimeRanges(batchTimeRanges.filter((_, i) => i !== idx))}
+                      className="text-red-400 text-xs hover:text-red-600"
+                    >
+                      삭제
+                    </button>
+                  )}
+                  {tr.start >= tr.end && (
+                    <span className="text-red-500 text-xs">시작 시간이 종료보다 빨라야 합니다</span>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         )}
 
