@@ -46,12 +46,18 @@ export default function Home() {
     return unsubscribe;
   }, [selectedWeek, selectedRaid]);
 
+  const [insufficientMsg, setInsufficientMsg] = useState('');
+
   const handleSolve = () => {
     if (!selectedRaid) return;
     setLoading(true);
+    setInsufficientMsg('');
     setTimeout(() => {
       const results = solveRaidComposition(registrations, selectedRaid);
       setCompositions(results);
+      if (results.length === 0 && registrations.length > 0) {
+        setInsufficientMsg('인원이 부족하여 공격대 배치가 불가합니다.');
+      }
       setLoading(false);
     }, 50);
   };
@@ -203,6 +209,14 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {/* 인원 부족 메시지 */}
+          {insufficientMsg && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-center">
+              <p className="text-red-700 font-semibold">{insufficientMsg}</p>
+              <p className="text-sm text-red-500 mt-1">신청 인원을 추가하거나 시간대를 조정해주세요.</p>
+            </div>
+          )}
 
           {/* 결과 */}
           {loading ? (

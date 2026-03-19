@@ -1,8 +1,53 @@
+import { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 export default function Layout() {
+  const [dark, setDark] = useState(() => {
+    return localStorage.getItem('theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (dark) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [dark]);
+
   return (
     <div className="min-h-screen bg-gray-50 pb-16">
+      {/* 우측 상단 다크/라이트 모드 토글 */}
+      <div className="fixed top-3 right-3 z-50 flex gap-1">
+        <button
+          onClick={() => setDark(false)}
+          className={`p-2 rounded-lg border transition-colors ${
+            !dark
+              ? 'bg-yellow-100 border-yellow-400 text-yellow-700'
+              : 'bg-white border-gray-300 text-gray-400 hover:text-gray-600'
+          }`}
+          title="라이트 모드"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m8.66-13.66l-.71.71M4.05 19.95l-.71.71M21 12h-1M4 12H3m16.66 7.66l-.71-.71M4.05 4.05l-.71-.71M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        </button>
+        <button
+          onClick={() => setDark(true)}
+          className={`p-2 rounded-lg border transition-colors ${
+            dark
+              ? 'bg-indigo-900 border-indigo-600 text-indigo-200'
+              : 'bg-white border-gray-300 text-gray-400 hover:text-gray-600'
+          }`}
+          title="다크 모드"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
+      </div>
+
       {/* 페이지 콘텐츠 */}
       <main className="py-4">
         <Outlet />

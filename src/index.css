@@ -1,1 +1,93 @@
 @import "tailwindcss";
+
+/* 다크모드 기본 스타일 */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body,
+.dark .min-h-screen {
+  background-color: #1a1a2e !important;
+  color: #e2e8f0 !important;
+}
+
+/* 다크모드 카드/패널 */
+.dark .bg-white {
+  background-color: #16213e !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #1a1a2e !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #1e2a47 !important;
+}
+
+/* 다크모드 텍스트 */
+.dark .text-gray-900,
+.dark .text-gray-800,
+.dark .text-gray-700 {
+  color: #e2e8f0 !important;
+}
+
+.dark .text-gray-600,
+.dark .text-gray-500 {
+  color: #94a3b8 !important;
+}
+
+.dark .text-gray-400 {
+  color: #64748b !important;
+}
+
+/* 다크모드 테두리 */
+.dark .border-gray-200,
+.dark .border-gray-300 {
+  border-color: #334155 !important;
+}
+
+.dark .border-gray-100 {
+  border-color: #1e293b !important;
+}
+
+/* 다크모드 입력 */
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #1e2a47 !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+/* 다크모드 네비게이션 */
+.dark nav.fixed {
+  background-color: #16213e !important;
+  border-color: #334155 !important;
+}
+
+/* 다크모드 호버 */
+.dark .hover\:bg-gray-50:hover {
+  background-color: #1e2a47 !important;
+}
+
+.dark .hover\:bg-gray-100:hover {
+  background-color: #253555 !important;
+}
+
+/* 다크모드 비활성 버튼 */
+.dark .bg-gray-400 {
+  background-color: #475569 !important;
+}
+
+/* 다크모드 오렌지/레드 알림 */
+.dark .bg-orange-50 {
+  background-color: #3d2800 !important;
+}
+
+.dark .bg-red-50 {
+  background-color: #3d0000 !important;
+}
+
+.dark .bg-green-100 {
+  background-color: #003d00 !important;
+}
