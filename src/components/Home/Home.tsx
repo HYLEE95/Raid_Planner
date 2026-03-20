@@ -119,8 +119,12 @@ export default function Home() {
     if (!selectedRaid) return;
     try {
       const existing = await getConfirmedRaid(selectedWeek, selectedRaid);
+      if (existing) {
+        alert('이미 확정된 공격대가 있습니다. 홈에서 기존 공대를 삭제한 후 다시 확정해주세요.');
+        return;
+      }
       await saveConfirmedRaid({
-        id: existing?.id || generateId(),
+        id: generateId(),
         raid_type: selectedRaid,
         week_start: selectedWeek,
         composition: comp,
