@@ -51,9 +51,9 @@ function MemberCard({ member }: { member: RaidMember }) {
       {isUnderpowered && (
         <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200 shrink-0 whitespace-nowrap">저스펙</span>
       )}
-      <span className="text-xs text-gray-500 ml-auto">{member.combat_power}K</span>
+      <span className="text-xs text-gray-500 ml-auto shrink-0 whitespace-nowrap">{member.combat_power}K</span>
       {!isBot && 'ownerName' in member && (
-        <span className="text-xs text-gray-400">({member.ownerName})</span>
+        <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">({member.ownerName})</span>
       )}
     </div>
   );

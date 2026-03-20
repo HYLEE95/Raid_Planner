@@ -102,8 +102,9 @@ function buildSlotGroups(registrations: DBRegistration[]): SlotGroup[] {
 }
 
 // 팀 평균 전투력 계산
-// 케이스1: 서포터 1명 → 170K 이상이면 전원 평균, 미만이면 서포터 제외 평균
-// 케이스2: 서포터 2명+ → 170K 이상 서포터는 딜러 취급하여 딜러 전체 평균
+// 케이스1: 서포터 0~1명 → 170K 이상이면 전원 평균, 미만이면 서포터 제외 평균
+// 케이스2: 서포터 2명+ → 170K 이상 서포터는 딜러 취급
+// 케이스2-1: 딜러 취급 가능 인원(딜러+170K이상서포터)이 3명 미만 → 합/3으로 계산
 function calcTeamAvg(members: RaidMember[]): number {
   const supporters = members.filter(m => m.class_type === '치유성' || m.class_type === '호법성');
   const dealers = members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
@@ -124,7 +125,11 @@ function calcTeamAvg(members: RaidMember[]): number {
     const strongSupporters = supporters.filter(s => s.combat_power >= 170);
     const effectiveDealers = [...dealers, ...strongSupporters];
     if (effectiveDealers.length === 0) return 0;
-    return effectiveDealers.reduce((sum, m) => sum + m.combat_power, 0) / effectiveDealers.length;
+    const sum = effectiveDealers.reduce((s, m) => s + m.combat_power, 0);
+    // 케이스2-1: 딜러 취급 가능 인원이 3명 미만이면 합/3으로 계산
+    // (딜러 수가 모자라는 만큼 딜러들 전투력이 높아야 하기 때문)
+    const divisor = Math.max(3, effectiveDealers.length);
+    return sum / divisor;
   }
 }
 
@@ -140,11 +145,6 @@ function getBotCombatPower(members: CharacterWithOwner[]): number {
 
 function countSupportInTeam(members: RaidMember[]): number {
   return members.filter(m => m.class_type === '치유성' || m.class_type === '호법성').length;
-}
-
-// 170K 미만 서포터 수 (파티당 최대 1명 제한용)
-function countLowCpSupport(members: RaidMember[]): number {
-  return members.filter(m => (m.class_type === '치유성' || m.class_type === '호법성') && m.combat_power < 170).length;
 }
 
 function sortRaidsBotsLast(raids: RaidGroup[]): RaidGroup[] {
@@ -195,12 +195,6 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
   for (const raid of comp.raids) {
     if (!raid.team1.members.some(m => m.class_type === '근딜')) score += 200;
     if (!raid.team2.members.some(m => m.class_type === '근딜')) score += 200;
-  }
-
-  // 170K 미만 서포터가 한 파티에 2명 이상이면 큰 패널티
-  for (const raid of comp.raids) {
-    if (countLowCpSupport(raid.team1.members) > 1) score += 5000;
-    if (countLowCpSupport(raid.team2.members) > 1) score += 5000;
   }
 
   // 서포트 과다 팀 패널티 (되도록 한 파티에 여러 서포트 비선호)
@@ -434,10 +428,8 @@ function tryFormRaid(
     if (team1Members.length >= 4 && team2Members.length >= 4) break;
     if (isOwnerInRaid(char.owner_id)) continue;
 
-    // 170K 미만 서포터는 파티당 1명만 가능
-    const isLowCp = char.combat_power < 170;
-    const can1 = team1Members.length < 4 && !(isLowCp && countLowCpSupport(team1Members) >= 1);
-    const can2 = team2Members.length < 4 && char.class_type !== '호법성' && !(isLowCp && countLowCpSupport(team2Members) >= 1);
+    const can1 = team1Members.length < 4;
+    const can2 = team2Members.length < 4 && char.class_type !== '호법성';
 
     if (can1 && can2) {
       const t1Support = countSupportInTeam(team1Members);
