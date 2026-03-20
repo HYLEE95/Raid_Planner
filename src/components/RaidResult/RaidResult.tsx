@@ -182,13 +182,13 @@ function buildSwapOptions(
       if (!team) continue;
 
       team.members.forEach((member, mIdx) => {
-        if (raid.id === currentRaidId && teamKey === currentTeamKey && mIdx === currentMemberIdx) return;
+        // 같은 공격대/파티 내 멤버는 선택 항목에서 제외
+        if (raid.id === currentRaidId) return;
 
         const isBot = 'isBot' in member && member.isBot;
 
-        // 같은 공격대 내 다른 멤버와의 교체는 소유주 제한 없음 (위치 스왑)
-        // 다른 공격대에서 가져올 때만 소유주 중복 체크
-        if (raid.id !== currentRaidId && !isBot && 'ownerName' in member) {
+        // 다른 공격대에서 가져올 때 소유주 중복 체크
+        if (!isBot && 'ownerName' in member) {
           if (sameRaidOwners.has((member as any).ownerName)) return;
         }
 
