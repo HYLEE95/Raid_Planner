@@ -445,7 +445,7 @@ export default function Registration() {
                             }
                             className="w-4 h-4 text-orange-500"
                           />
-                          <span className="text-sm text-gray-700">공팟 스펙 미달(부캐)</span>
+                          <span className="text-sm text-gray-700">공팟 스펙 미달(저스펙)</span>
                         </label>
                       </>
                     );

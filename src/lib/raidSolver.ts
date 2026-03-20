@@ -702,16 +702,30 @@ function shuffledComposition(
   return comp;
 }
 
-// 메인 솔버
-export function solveRaidComposition(registrations: DBRegistration[], raidType: RaidType = '루드라'): RaidComposition[] {
-  if (registrations.length === 0) return [];
-  void RAID_CONFIGS[raidType]; // 추후 레이드별 설정 사용 예정
+// 조합에서 스펙미달+봇이 같은 팀에 있는지 체크
+function hasUnderpoweredWithBot(comp: RaidComposition): boolean {
+  for (const raid of comp.raids) {
+    for (const team of [raid.team1, raid.team2]) {
+      const hasBot = team.members.some(m => 'isBot' in m && m.isBot);
+      const hasUnder = team.members.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
+      if (hasBot && hasUnder) return true;
+    }
+  }
+  return false;
+}
 
-  const slotGroups = buildSlotGroups(registrations);
-  const maxBots = 4;
+// 슬롯 그룹에서 특정 캐릭터 ID 제외
+function filterSlotGroups(slotGroups: SlotGroup[], excludeIds: Set<string>): SlotGroup[] {
+  return slotGroups.map(sg => ({
+    slot: sg.slot,
+    characters: sg.characters.filter(c => !excludeIds.has(c.id)),
+  })).filter(sg => sg.characters.length > 0);
+}
+
+// 기본 전략들로 조합 생성
+function generateCompositions(slotGroups: SlotGroup[], maxBots: number): RaidComposition[] {
   const allResults: RaidComposition[] = [];
 
-  // 기본 전략들
   const greedy = crossSlotComposition(slotGroups, maxBots, 'greedy');
   if (greedy) allResults.push(greedy);
 
@@ -721,10 +735,68 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
   const timeOrdered = crossSlotComposition(slotGroups, maxBots, 'balanced');
   if (timeOrdered) allResults.push(timeOrdered);
 
-  // 셔플 기반 다양한 조합 생성 (20회 시도)
   for (let seed = 1; seed <= 20; seed++) {
     const comp = shuffledComposition(slotGroups, maxBots, seed * 7919);
     if (comp) allResults.push(comp);
+  }
+
+  return allResults;
+}
+
+// 메인 솔버
+export function solveRaidComposition(registrations: DBRegistration[], raidType: RaidType = '루드라'): RaidComposition[] {
+  if (registrations.length === 0) return [];
+  void RAID_CONFIGS[raidType]; // 추후 레이드별 설정 사용 예정
+
+  const slotGroups = buildSlotGroups(registrations);
+  const maxBots = 4;
+  let allResults = generateCompositions(slotGroups, maxBots);
+
+  // 스펙미달+봇 동일 팀인 조합 필터링
+  const cleanResults = allResults.filter(c => !hasUnderpoweredWithBot(c));
+
+  // 유효한 조합이 없으면 스펙미달 인원을 낮은 전투력순으로 하나씩 제외하며 재시도
+  if (cleanResults.length === 0 && allResults.length > 0) {
+    const allChars = getAllUniqueChars(slotGroups);
+    const underpoweredChars = allChars
+      .filter(c => c.is_underpowered)
+      .sort((a, b) => a.combat_power - b.combat_power); // 낮은 전투력부터
+
+    const excludeIds = new Set<string>();
+    for (const underChar of underpoweredChars) {
+      excludeIds.add(underChar.id);
+      const filteredSlots = filterSlotGroups(slotGroups, excludeIds);
+      if (filteredSlots.length === 0) continue;
+
+      const retryResults = generateCompositions(filteredSlots, maxBots);
+      const retryClean = retryResults.filter(c => !hasUnderpoweredWithBot(c));
+
+      if (retryClean.length > 0) {
+        // 제외된 스펙미달 캐릭터를 excludedCharacters에 추가
+        const excludedUnders = underpoweredChars
+          .filter(c => excludeIds.has(c.id))
+          .map(c => ({
+            id: c.id, owner_id: c.owner_id, nickname: c.nickname,
+            class_type: c.class_type, combat_power: c.combat_power,
+            can_clear_raid: c.can_clear_raid, is_underpowered: c.is_underpowered,
+            ownerName: c.ownerName,
+          }));
+
+        for (const comp of retryClean) {
+          comp.excludedCharacters = [...comp.excludedCharacters, ...excludedUnders];
+          comp.score = scoreComposition(comp);
+        }
+        allResults = retryClean;
+        break;
+      }
+    }
+
+    // 그래도 안되면 원래 결과 사용 (스펙미달+봇 공존이라도)
+    if (allResults.every(c => hasUnderpoweredWithBot(c))) {
+      // 원래 결과 유지
+    }
+  } else {
+    allResults = cleanResults.length > 0 ? cleanResults : allResults;
   }
 
   // 중복 제거

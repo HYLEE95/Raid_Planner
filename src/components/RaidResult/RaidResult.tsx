@@ -41,7 +41,7 @@ function MemberCard({ member }: { member: RaidMember }) {
         {member.nickname}
       </span>
       {isUnderpowered && (
-        <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200">부캐</span>
+        <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200">저스펙</span>
       )}
       <span className="text-xs text-gray-500 ml-auto">{member.combat_power}K</span>
       {!isBot && 'ownerName' in member && (
