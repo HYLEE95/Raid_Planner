@@ -164,49 +164,7 @@ export default function Manual() {
         </div>
       </section>
 
-      {/* 배치 규칙 안내 */}
-      <section className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">배치 규칙 안내</h2>
-        </div>
-        <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl p-5">
-          <ul className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-            <li className="flex items-start gap-2">
-              <span className="text-indigo-500 mt-0.5 shrink-0">&#9679;</span>
-              <span>최대한 많은 소유주가 공격대에 참여하도록 우선 배치</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-indigo-500 mt-0.5 shrink-0">&#9679;</span>
-              <span>가용 시간이 적은 소유주를 먼저 배치</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-indigo-500 mt-0.5 shrink-0">&#9679;</span>
-              <span>2팀의 전투력이 1팀보다 높게 구성</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-indigo-500 mt-0.5 shrink-0">&#9679;</span>
-              <span>루드라: 파티 평균 DPS 160K 이상 선호</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-indigo-500 mt-0.5 shrink-0">&#9679;</span>
-              <span>전투력 170K 미만 서포터는 파티당 1명만 배치</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-indigo-500 mt-0.5 shrink-0">&#9679;</span>
-              <span>저스펙(공팟 스펙 미달) 캐릭터는 공방인원과 같은 공격대에 배치되지 않음</span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="text-indigo-500 mt-0.5 shrink-0">&#9679;</span>
-              <span>한 파티에 여러 서포트 배치 시, 양 팀 모두 치유성 포함 선호</span>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="h-20" />
+      <div className="h-8" />
     </div>
   );
 }
