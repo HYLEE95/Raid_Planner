@@ -354,10 +354,10 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
     }
   }
 
-  // 제외 우선순위
+  // 스펙미달 인원이 제외되면 큰 패널티 (되도록 배치)
   for (const ex of comp.excludedCharacters) {
     if ('is_underpowered' in ex && (ex as any).is_underpowered) {
-      score += 50000;
+      score += 80000; // 스펙미달도 되도록 배치해야 함
     } else if (ex.can_clear_raid) {
       score -= Math.max(0, 500 - ex.combat_power);
     } else {
@@ -396,6 +396,7 @@ function tryFormRaid(
 ): { raid: RaidGroup; usedChars: CharacterWithOwner[] } | null {
   const eligible = available.filter(
     c => !usedCharIds.has(c.id) && !usedOwnersInTimeSlot.has(c.owner_id)
+      && !(maxBotsPerRaid > 0 && c.is_underpowered) // 봇 공격대에는 스펙미달 배치 불가
   );
 
   if (eligible.length === 0) return null;
