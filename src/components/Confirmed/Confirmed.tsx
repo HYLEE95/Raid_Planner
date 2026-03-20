@@ -4,140 +4,20 @@ import {
   formatDate,
   getConfirmedRaid,
   deleteConfirmedRaid,
+  saveConfirmedRaid,
 } from '../../lib/storage';
 import WeekPicker from '../WeekPicker/WeekPicker';
-import type { ConfirmedRaid, RaidType, RaidGroup, RaidMember } from '../../lib/types';
+import RaidResult from '../RaidResult/RaidResult';
+import type { ConfirmedRaid, RaidType, RaidComposition } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
-
-const CLASS_BADGE: Record<string, string> = {
-  '근딜': 'bg-red-500 text-white',
-  '원딜': 'bg-blue-500 text-white',
-  '호법성': 'bg-yellow-500 text-white',
-  '치유성': 'bg-green-500 text-white',
-  '세가': 'bg-purple-500 text-white',
-  '세바': 'bg-teal-500 text-white',
-  '딜러': 'bg-rose-500 text-white',
-};
-
-const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
-
-function formatDateWithDay(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
-  const dayName = DAY_NAMES[d.getDay()];
-  return `${month}/${day}(${dayName})`;
-}
-
-function MemberCard({ member, raidType }: { member: RaidMember; raidType?: RaidType }) {
-  const isBot = 'isBot' in member && member.isBot;
-  const isUnderpowered = !isBot && 'is_underpowered' in member && (member as any).is_underpowered;
-  const isBri = raidType === '브리레흐';
-
-  return (
-    <div
-      className={`flex items-center gap-2 p-2 rounded border ${
-        isBot
-          ? 'bg-gray-100 dark:bg-gray-700 border-dashed border-gray-400'
-          : isUnderpowered
-            ? 'bg-orange-50 dark:bg-orange-900/30 border-orange-300'
-            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600'
-      }`}
-    >
-      <span className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${CLASS_BADGE[member.class_type] || 'bg-gray-500 text-white'}`}>
-        {member.class_type}
-      </span>
-      <span
-        className={`text-sm font-medium truncate min-w-0 ${isBot ? 'text-gray-400 italic' : 'text-gray-800 dark:text-gray-200'}`}
-      >
-        {member.nickname}
-      </span>
-      {isUnderpowered && (
-        <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200 shrink-0 whitespace-nowrap">저스펙</span>
-      )}
-      {!isBri && (
-        <span className="text-xs text-gray-500 ml-auto shrink-0 whitespace-nowrap">{member.combat_power}K</span>
-      )}
-      {isBri && !isBot && 'has_destruction_robe' in member && (member as any).has_destruction_robe && (
-        <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700 shrink-0 whitespace-nowrap">파롭</span>
-      )}
-      {isBri && !isBot && 'is_blast_lancer' in member && (member as any).is_blast_lancer && (
-        <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-[10px] rounded border border-blue-200 dark:border-blue-700 shrink-0 whitespace-nowrap">블랜</span>
-      )}
-      {isBri && !isBot && 'has_soul_weapon' in member && (member as any).has_soul_weapon && (
-        <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700 shrink-0 whitespace-nowrap">소울</span>
-      )}
-      {!isBot && 'ownerName' in member && (
-        <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-auto">({member.ownerName})</span>
-      )}
-    </div>
-  );
-}
-
-function TeamCard({ team, label, raidType }: { team: { members: RaidMember[]; avgCombatPower: number }; label: string; raidType?: RaidType }) {
-  const isBri = raidType === '브리레흐';
-  return (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center justify-between mb-2">
-        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{label}</h4>
-        {!isBri && (
-          <span className="text-xs text-gray-500">평균(딜러) {team.avgCombatPower.toFixed(1)}K</span>
-        )}
-        {isBri && (
-          <span className="text-xs text-gray-500">{team.members.length}인</span>
-        )}
-      </div>
-      <div className="space-y-1">
-        {team.members.map((member, idx) => (
-          <MemberCard key={idx} member={member} raidType={raidType} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function RaidGroupCard({ raid, raidType }: { raid: RaidGroup; raidType?: RaidType }) {
-  const isBri = raidType === '브리레흐';
-  return (
-    <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm">
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-          {isBri ? `파티 ${raid.id}` : `공격대 ${raid.id}`}
-        </h3>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {formatDateWithDay(raid.timeSlot.date)} {raid.timeSlot.start_time}~{raid.timeSlot.end_time}
-          </span>
-          {!isBri && (
-            <span className="text-sm font-medium text-indigo-600">평균(딜러) {raid.avgCombatPower.toFixed(1)}K</span>
-          )}
-          {isBri && (
-            <span className="text-sm font-medium text-indigo-600">{raid.team1.members.length}인 파티</span>
-          )}
-          {raid.botCount > 0 && (
-            <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded">공방인원 {raid.botCount}명</span>
-          )}
-        </div>
-      </div>
-      <div className="flex gap-4 flex-wrap">
-        {isBri ? (
-          <TeamCard team={raid.team1} label="파티원" raidType={raidType} />
-        ) : (
-          <>
-            <TeamCard team={raid.team1} label="1팀" raidType={raidType} />
-            {raid.team2 && <TeamCard team={raid.team2} label="2팀" raidType={raidType} />}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
 
 export default function Confirmed() {
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
   const [selectedWeek, setSelectedWeek] = useState(() => formatDate(getWeekStartForRaid(new Date(), '루드라')));
   const [confirmed, setConfirmed] = useState<ConfirmedRaid | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const loadConfirmed = useCallback(async () => {
     if (!selectedRaid) { setConfirmed(null); return; }
@@ -145,6 +25,7 @@ export default function Confirmed() {
     try {
       const data = await getConfirmedRaid(selectedWeek, selectedRaid);
       setConfirmed(data);
+      setHasChanges(false);
     } catch (err) {
       console.error('확정 공대 로드 실패:', err);
     } finally {
@@ -162,18 +43,38 @@ export default function Confirmed() {
     try {
       await deleteConfirmedRaid(confirmed.id);
       setConfirmed(null);
+      setHasChanges(false);
       alert('공격대가 삭제되었습니다.');
     } catch (err) {
       alert('삭제 실패: ' + (err as Error).message);
     }
   };
 
-  const sortedRaids = confirmed
-    ? [...confirmed.composition.raids].sort((a, b) => {
-        const d = a.timeSlot.date.localeCompare(b.timeSlot.date);
-        return d !== 0 ? d : a.timeSlot.start_time.localeCompare(b.timeSlot.start_time);
-      })
-    : [];
+  const handleUpdate = (compositions: RaidComposition[]) => {
+    if (!confirmed || compositions.length === 0) return;
+    setConfirmed({
+      ...confirmed,
+      composition: compositions[0],
+    });
+    setHasChanges(true);
+  };
+
+  const handleSave = async () => {
+    if (!confirmed || !hasChanges) return;
+    setSaving(true);
+    try {
+      await saveConfirmedRaid(confirmed);
+      setHasChanges(false);
+      alert('변경 사항이 저장되었습니다.');
+    } catch (err) {
+      alert('저장 실패: ' + (err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // RaidResult에 넘기기 위해 composition을 배열로 감싸기
+  const compositions: RaidComposition[] = confirmed ? [confirmed.composition] : [];
 
   return (
     <div className="max-w-6xl mx-auto p-4">
@@ -190,6 +91,7 @@ export default function Confirmed() {
                 setSelectedRaid(rt);
                 setSelectedWeek(formatDate(getWeekStartForRaid(new Date(), rt)));
                 setConfirmed(null);
+                setHasChanges(false);
               }}
               className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors ${
                 selectedRaid === rt
@@ -210,7 +112,7 @@ export default function Confirmed() {
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">주차 선택</label>
             <WeekPicker
               value={selectedWeek}
-              onChange={(v) => { setSelectedWeek(v); setConfirmed(null); }}
+              onChange={(v) => { setSelectedWeek(v); setConfirmed(null); setHasChanges(false); }}
               resetDay={RAID_CONFIGS[selectedRaid].resetDay}
             />
           </div>
@@ -232,40 +134,44 @@ export default function Confirmed() {
                     ({new Date(confirmed.confirmed_at).toLocaleString('ko-KR')})
                   </span>
                 </div>
-                <button
-                  onClick={handleDelete}
-                  className="px-3 py-1.5 rounded-lg text-sm font-semibold text-red-600 bg-white dark:bg-gray-800 border border-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
-                >
-                  삭제
-                </button>
+                <div className="flex items-center gap-2">
+                  {hasChanges && (
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="px-3 py-1.5 rounded-lg text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                    >
+                      {saving ? '저장 중...' : '변경 저장'}
+                    </button>
+                  )}
+                  <button
+                    onClick={handleDelete}
+                    className="px-3 py-1.5 rounded-lg text-sm font-semibold text-red-600 bg-white dark:bg-gray-800 border border-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                  >
+                    삭제
+                  </button>
+                </div>
               </div>
 
-              {/* 공격대/파티 목록 */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {sortedRaids.map(raid => (
-                  <RaidGroupCard key={raid.id} raid={raid} raidType={selectedRaid} />
-                ))}
-              </div>
-
-              {/* 빠지는 인원 */}
-              {confirmed.composition.excludedCharacters.length > 0 && (
-                <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg">
-                  <h3 className="text-sm font-bold text-orange-800 dark:text-orange-300 mb-2">
-                    빠지는 인원 ({confirmed.composition.excludedCharacters.length}명)
-                  </h3>
-                  <div className="flex gap-2 flex-wrap">
-                    {confirmed.composition.excludedCharacters.map((char, i) => (
-                      <span
-                        key={i}
-                        className="px-2 py-1 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-sm rounded border border-orange-300"
-                      >
-                        {char.nickname}
-                        <span className="text-xs ml-1">({char.ownerName})</span>
-                      </span>
-                    ))}
-                  </div>
+              {/* 미저장 변경 알림 */}
+              {hasChanges && (
+                <div className="mb-4 p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 rounded-lg text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  수정 사항이 있습니다. &quot;변경 저장&quot; 버튼을 눌러 저장해주세요.
                 </div>
               )}
+
+              {/* RaidResult 재사용 (편집 가능) */}
+              <RaidResult
+                compositions={compositions}
+                selectedIndex={0}
+                onSelectIndex={() => {}}
+                onUpdate={handleUpdate}
+                raidType={selectedRaid}
+                weekStart={selectedWeek}
+              />
             </div>
           ) : (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
