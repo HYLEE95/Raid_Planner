@@ -101,15 +101,31 @@ function buildSlotGroups(registrations: DBRegistration[]): SlotGroup[] {
   return result;
 }
 
-// 팀 평균 전투력 (항상 3으로 나눔)
-// 서포트 2명 이상 시 호법성의 전투력도 평균 계산에 포함
+// 팀 평균 전투력 계산
+// 케이스1: 서포터 1명 → 170K 이상이면 전원 평균, 미만이면 서포터 제외 평균
+// 케이스2: 서포터 2명+ → 170K 이상 서포터는 딜러 취급하여 딜러 전체 평균
 function calcTeamAvg(members: RaidMember[]): number {
-  const supportCount = members.filter(m => m.class_type === '치유성' || m.class_type === '호법성').length;
-  const countable = supportCount >= 2
-    ? members.filter(m => m.class_type === '근딜' || m.class_type === '원딜' || m.class_type === '호법성')
-    : members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
-  if (countable.length === 0) return 0;
-  return countable.reduce((sum, m) => sum + m.combat_power, 0) / 3;
+  const supporters = members.filter(m => m.class_type === '치유성' || m.class_type === '호법성');
+  const dealers = members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
+
+  if (supporters.length <= 1) {
+    // 케이스1: 서포터 0~1명
+    if (supporters.length === 1 && supporters[0].combat_power >= 170) {
+      // 케이스1-1: 서포터 170K 이상 → 파티원 전원 평균
+      if (members.length === 0) return 0;
+      return members.reduce((sum, m) => sum + m.combat_power, 0) / members.length;
+    } else {
+      // 케이스1-2: 서포터 170K 미만 또는 서포터 없음 → 서포터 제외 평균
+      if (dealers.length === 0) return 0;
+      return dealers.reduce((sum, m) => sum + m.combat_power, 0) / dealers.length;
+    }
+  } else {
+    // 케이스2: 서포터 2명 이상 → 170K 이상 서포터는 딜러 취급
+    const strongSupporters = supporters.filter(s => s.combat_power >= 170);
+    const effectiveDealers = [...dealers, ...strongSupporters];
+    if (effectiveDealers.length === 0) return 0;
+    return effectiveDealers.reduce((sum, m) => sum + m.combat_power, 0) / effectiveDealers.length;
+  }
 }
 
 function createBot(classType: ClassType, combatPower: number, idx: number): BotCharacter {
@@ -124,6 +140,11 @@ function getBotCombatPower(members: CharacterWithOwner[]): number {
 
 function countSupportInTeam(members: RaidMember[]): number {
   return members.filter(m => m.class_type === '치유성' || m.class_type === '호법성').length;
+}
+
+// 170K 미만 서포터 수 (파티당 최대 1명 제한용)
+function countLowCpSupport(members: RaidMember[]): number {
+  return members.filter(m => (m.class_type === '치유성' || m.class_type === '호법성') && m.combat_power < 170).length;
 }
 
 function sortRaidsBotsLast(raids: RaidGroup[]): RaidGroup[] {
@@ -174,6 +195,12 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
   for (const raid of comp.raids) {
     if (!raid.team1.members.some(m => m.class_type === '근딜')) score += 200;
     if (!raid.team2.members.some(m => m.class_type === '근딜')) score += 200;
+  }
+
+  // 170K 미만 서포터가 한 파티에 2명 이상이면 큰 패널티
+  for (const raid of comp.raids) {
+    if (countLowCpSupport(raid.team1.members) > 1) score += 5000;
+    if (countLowCpSupport(raid.team2.members) > 1) score += 5000;
   }
 
   // 서포트 과다 팀 패널티 (되도록 한 파티에 여러 서포트 비선호)
@@ -387,8 +414,10 @@ function tryFormRaid(
     if (team1Members.length >= 4 && team2Members.length >= 4) break;
     if (isOwnerInRaid(char.owner_id)) continue;
 
-    const can1 = team1Members.length < 4;
-    const can2 = team2Members.length < 4 && char.class_type !== '호법성'; // Team2에 호법성 불가
+    // 170K 미만 서포터는 파티당 1명만 가능
+    const isLowCp = char.combat_power < 170;
+    const can1 = team1Members.length < 4 && !(isLowCp && countLowCpSupport(team1Members) >= 1);
+    const can2 = team2Members.length < 4 && char.class_type !== '호법성' && !(isLowCp && countLowCpSupport(team2Members) >= 1);
 
     if (can1 && can2) {
       const t1Support = countSupportInTeam(team1Members);
