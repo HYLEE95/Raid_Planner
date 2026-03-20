@@ -135,12 +135,37 @@ interface SwapOption {
   group: string;
 }
 
+// 캐릭터가 해당 시간대에 참여 가능한지 확인
+function canMemberParticipateInSlot(
+  member: RaidMember,
+  targetSlot: { date: string; start_time: string; end_time: string },
+  registrations?: DBRegistration[],
+): boolean {
+  if ('isBot' in member && member.isBot) return true;
+  if (!registrations || registrations.length === 0) return true;
+
+  const ownerName = 'ownerName' in member ? (member as any).ownerName : null;
+  if (!ownerName) return true;
+
+  // 해당 소유주의 등록에서 시간대 확인
+  const ownerReg = registrations.find(r => r.owner_name === ownerName);
+  if (!ownerReg) return true;
+
+  // 소유주의 등록 시간대 중 하나라도 targetSlot을 포함하면 참여 가능
+  return ownerReg.time_slots.some(slot =>
+    slot.date === targetSlot.date &&
+    slot.start_time <= targetSlot.start_time &&
+    slot.end_time >= targetSlot.end_time
+  );
+}
+
 function buildSwapOptions(
   comp: RaidComposition,
   currentRaidId: number,
   currentTeamKey: 'team1' | 'team2',
   currentMemberIdx: number,
   raidType?: RaidType,
+  registrations?: DBRegistration[],
 ): SwapOption[] {
   const options: SwapOption[] = [];
   const isBri = raidType === '브리레흐';
@@ -163,10 +188,12 @@ function buildSwapOptions(
     });
   }
 
-  // 1. 빠지는 인원 (같은 소유주가 이미 해당 공격대에 있으면 제외)
+  // 1. 빠지는 인원 (같은 소유주가 이미 해당 공격대에 있으면 제외 + 시간대 검증)
   for (let i = 0; i < comp.excludedCharacters.length; i++) {
     const char = comp.excludedCharacters[i];
     if (sameRaidOwners.has(char.ownerName)) continue;
+    // 해당 시간대에 참여 불가능하면 선택지에서 제외
+    if (currentRaid && !canMemberParticipateInSlot(char as any, currentRaid.timeSlot, registrations)) continue;
     let label = `${char.nickname} (${char.ownerName}) - ${char.class_type}`;
     if (!isBri && char.combat_power > 0) label += ` ${char.combat_power}K`;
     options.push({ label, value: `ex:${i}`, group: '빠지는 인원' });
@@ -191,6 +218,9 @@ function buildSwapOptions(
         if (!isBot && 'ownerName' in member) {
           if (sameRaidOwners.has((member as any).ownerName)) return;
         }
+
+        // 해당 시간대에 참여 불가능하면 선택지에서 제외
+        if (currentRaid && !canMemberParticipateInSlot(member, currentRaid.timeSlot, registrations)) return;
 
         const ownerInfo = !isBot && 'ownerName' in member ? ` (${(member as any).ownerName})` : '';
         let label = `${member.nickname}${ownerInfo} - ${member.class_type}`;
@@ -430,7 +460,7 @@ function RaidGroupCard({
   // 교체 옵션 빌드
   const getSwapOptions = (teamKey: 'team1' | 'team2', memberIdx: number): SwapOption[] => {
     if (!comp) return [];
-    return buildSwapOptions(comp, raid.id, teamKey, memberIdx, raidType);
+    return buildSwapOptions(comp, raid.id, teamKey, memberIdx, raidType, registrations);
   };
 
   return (
