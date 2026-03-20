@@ -4,6 +4,7 @@ import Home from './components/Home/Home';
 import Registration from './components/Registration/Registration';
 import Confirmed from './components/Confirmed/Confirmed';
 import CharacterInput from './components/CharacterInput/CharacterInput';
+import Manual from './components/Manual/Manual';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
           <Route path="register" element={<Registration />} />
           <Route path="raid-compose" element={<Home />} />
           <Route path="characters" element={<CharacterInput />} />
+          <Route path="manual" element={<Manual />} />
         </Route>
       </Routes>
     </HashRouter>

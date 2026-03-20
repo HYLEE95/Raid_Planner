@@ -1118,7 +1118,11 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
     }
   }
 
-  // 점수순 정렬 (제외 인원 적은 순 → 전투력 균등 순)
-  unique.sort((a, b) => a.score - b.score);
+  // 제외 인원 적은 순 → 점수순 정렬
+  unique.sort((a, b) => {
+    const exDiff = a.excludedCharacters.length - b.excludedCharacters.length;
+    if (exDiff !== 0) return exDiff;
+    return a.score - b.score;
+  });
   return unique.slice(0, 4);
 }
