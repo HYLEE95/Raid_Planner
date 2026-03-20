@@ -119,12 +119,8 @@ export default function Home() {
     if (!selectedRaid) return;
     try {
       const existing = await getConfirmedRaid(selectedWeek, selectedRaid);
-      if (existing) {
-        alert('이미 공격대가 확정되었습니다.');
-        return;
-      }
       await saveConfirmedRaid({
-        id: generateId(),
+        id: existing?.id || generateId(),
         raid_type: selectedRaid,
         week_start: selectedWeek,
         composition: comp,

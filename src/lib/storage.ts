@@ -162,9 +162,13 @@ export async function getAllConfirmedRaids(): Promise<ConfirmedRaid[]> {
 }
 
 export async function deleteConfirmedRaid(id: string): Promise<void> {
-  // 항상 localStorage에서도 삭제
-  const all = getLocalConfirmed().filter(c => c.id !== id);
-  saveLocalConfirmed(all);
+  // 항상 localStorage에서 삭제 (우선)
+  try {
+    const all = getLocalConfirmed().filter(c => c.id !== id);
+    saveLocalConfirmed(all);
+  } catch (e) {
+    console.warn('localStorage 삭제 실패:', e);
+  }
 
   if (isSupabaseConfigured()) {
     try {
