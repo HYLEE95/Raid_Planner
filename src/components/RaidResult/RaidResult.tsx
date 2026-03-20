@@ -370,7 +370,7 @@ function TeamCard({
             onRemove={onRemoveMember ? () => onRemoveMember(idx) : undefined}
           />
         ))}
-        {isBri && onAddMember && (
+        {isBri && onAddMember && team.members.length < 8 && (
           <button
             onClick={onAddMember}
             className="w-full py-1.5 rounded border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-400 transition-colors flex items-center justify-center gap-1 text-xs font-medium"
@@ -864,6 +864,9 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
     const comp = compositions[compIdx];
     const raidObj = comp.raids.find(r => r.id === raidId);
     if (!raidObj) return;
+
+    // 브리레흐 파티당 최대 8명 제한
+    if (raidObj.team1.members.length >= 8) return;
 
     const existingBots = raidObj.team1.members.filter(m => 'isBot' in m && m.isBot).length;
     const botIdx = existingBots + 1;
