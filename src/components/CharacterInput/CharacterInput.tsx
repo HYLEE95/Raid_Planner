@@ -4,6 +4,8 @@ import {
   saveCharacterProfile,
   getCharacterProfiles,
   deleteCharacterProfile,
+  getAllRegistrations,
+  saveRegistration,
 } from '../../lib/storage';
 import type { ClassType, DBCharacterProfile, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
@@ -103,6 +105,24 @@ export default function CharacterInput() {
         created_at: new Date().toISOString(),
       };
       await saveCharacterProfile(profile);
+
+      // 기존 신청 데이터에도 캐릭터 정보 동기화
+      try {
+        const allRegs = await getAllRegistrations();
+        const ownerRegs = allRegs.filter(
+          r => r.owner_name === ownerName.trim() && r.raid_type === selectedRaid!
+        );
+        for (const reg of ownerRegs) {
+          const updatedChars = reg.characters.map(rc => {
+            const updated = profile.characters.find(pc => pc.nickname === rc.nickname);
+            return updated ? { ...rc, ...updated } : rc;
+          });
+          await saveRegistration({ ...reg, characters: updatedChars });
+        }
+      } catch (syncErr) {
+        console.error('신청 데이터 동기화 실패:', syncErr);
+      }
+
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       resetForm();
