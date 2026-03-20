@@ -26,10 +26,10 @@ function MemberCard({ member }: { member: RaidMember }) {
     <div
       className={`flex items-center gap-2 p-2 rounded border ${
         isBot
-          ? 'bg-gray-100 border-dashed border-gray-400'
+          ? 'bg-gray-100 dark:bg-gray-700 border-dashed border-gray-400'
           : isUnderpowered
-            ? 'bg-orange-50 border-orange-300'
-            : 'bg-white border-gray-200'
+            ? 'bg-orange-50 dark:bg-orange-900/30 border-orange-300'
+            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600'
       }`}
     >
       <span
@@ -38,7 +38,7 @@ function MemberCard({ member }: { member: RaidMember }) {
         {member.class_type}
       </span>
       <span
-        className={`text-sm font-medium truncate min-w-0 ${isBot ? 'text-gray-400 italic' : 'text-gray-800'}`}
+        className={`text-sm font-medium truncate min-w-0 ${isBot ? 'text-gray-400 italic' : 'text-gray-800 dark:text-gray-200'}`}
       >
         {member.nickname}
       </span>
@@ -57,8 +57,8 @@ function TeamCard({ team, label }: { team: { members: RaidMember[]; avgCombatPow
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center justify-between mb-2">
-        <h4 className="text-sm font-bold text-gray-700">{label}</h4>
-        <span className="text-xs text-gray-500">
+        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{label}</h4>
+        <span className="text-xs text-gray-600 dark:text-gray-400">
           평균(딜러) {team.avgCombatPower.toFixed(1)}K
         </span>
       </div>
@@ -73,20 +73,20 @@ function TeamCard({ team, label }: { team: { members: RaidMember[]; avgCombatPow
 
 function RaidGroupCard({ raid }: { raid: RaidGroup }) {
   return (
-    <div className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
-        <h3 className="text-lg font-bold text-gray-900">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
           공격대 {raid.id}
         </h3>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-gray-600 dark:text-gray-400">
             {formatDateWithDay(raid.timeSlot.date)} {raid.timeSlot.start_time}~{raid.timeSlot.end_time}
           </span>
           <span className="text-sm font-medium text-indigo-600">
             평균(딜러) {raid.avgCombatPower.toFixed(1)}K
           </span>
           {raid.botCount > 0 && (
-            <span className="px-2 py-0.5 bg-gray-200 text-gray-600 text-xs rounded">
+            <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">
               공방인원 {raid.botCount}명
             </span>
           )}
@@ -109,7 +109,7 @@ function CompositionSummary({ comp }: { comp: RaidComposition }) {
     : '0';
 
   return (
-    <div className="flex items-center gap-3 text-sm text-gray-500">
+    <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
       <span>공격대 {comp.raids.length}개</span>
       <span>평균(딜러) {avgPower}K</span>
       {totalBots > 0 && <span>공방인원 {totalBots}명</span>}
@@ -132,7 +132,7 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
 
   if (compositions.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">
+      <div className="text-center py-12 text-gray-600 dark:text-gray-400">
         <p className="text-lg">아직 공격대 조합이 없습니다.</p>
         <p className="text-sm mt-2">파티 참여 신청을 먼저 진행해주세요.</p>
       </div>
@@ -155,17 +155,17 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
         });
 
         return (
-          <div key={idx} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
+          <div key={idx} className="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 overflow-hidden">
             {/* 아코디언 헤더 */}
             <div
               onClick={() => toggleExpand(idx)}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left cursor-pointer"
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left cursor-pointer"
               role="button"
               tabIndex={0}
               onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(idx); } }}
             >
               <div className="flex items-center gap-3">
-                <span className="text-base font-bold text-gray-900">조합 {idx + 1}</span>
+                <span className="text-base font-bold text-gray-900 dark:text-gray-100">조합 {idx + 1}</span>
                 <CompositionSummary comp={comp} />
               </div>
               <div className="flex items-center gap-2">
@@ -198,7 +198,7 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
 
             {/* 아코디언 콘텐츠 */}
             {isExpanded && (
-              <div className="px-4 pb-4 border-t border-gray-100">
+              <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                   {sortedRaids.map(raid => (
                     <RaidGroupCard key={raid.id} raid={raid} />
@@ -207,15 +207,15 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
 
                 {/* 빠지는 인원 */}
                 {comp.excludedCharacters.length > 0 && (
-                  <div className="mt-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                    <h3 className="text-sm font-bold text-orange-800 mb-2">
+                  <div className="mt-4 p-3 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-lg">
+                    <h3 className="text-sm font-bold text-orange-800 dark:text-orange-300 mb-2">
                       빠지는 인원 ({comp.excludedCharacters.length}명)
                     </h3>
                     <div className="flex gap-2 flex-wrap">
                       {comp.excludedCharacters.map((char, i) => (
                         <span
                           key={i}
-                          className="px-2 py-1 bg-orange-100 text-orange-700 text-sm rounded border border-orange-300"
+                          className="px-2 py-1 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-sm rounded border border-orange-300"
                         >
                           {char.nickname}
                           <span className="text-xs ml-1">({char.ownerName})</span>

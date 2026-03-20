@@ -399,25 +399,25 @@ export default function Registration() {
 
   return (
     <div className="max-w-2xl mx-auto p-4">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
         {editId ? '신청 수정' : '파티 참여 신청'}
       </h1>
 
       {saved && (
-        <div className="mb-4 p-3 bg-green-100 text-green-800 rounded-lg border border-green-300">
+        <div className="mb-4 p-3 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 rounded-lg border border-green-300 dark:border-green-700">
           {editId ? '신청이 수정되었습니다!' : '신청이 완료되었습니다!'}
         </div>
       )}
 
       {editId && !saved && (
-        <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 text-sm">
+        <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 rounded-lg border border-amber-300 dark:border-amber-700 text-sm">
           이미 신청된 소유주입니다. 수정 후 저장하면 기존 신청이 업데이트됩니다.
         </div>
       )}
 
       {/* 레이드 선택 */}
       <section className="mb-6">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">레이드 선택</label>
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">레이드 선택</label>
         <div className="flex gap-2">
           {RAID_TYPES.map(rt => (
             <button
@@ -426,7 +426,7 @@ export default function Registration() {
               className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors ${
                 selectedRaid === rt
                   ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-300'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-300'
               }`}
             >
               {RAID_CONFIGS[rt].label}
@@ -440,7 +440,7 @@ export default function Registration() {
 
       {/* 주차 선택 */}
       <section className="mb-6">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">주차 선택</label>
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">주차 선택</label>
         <WeekPicker
           value={selectedWeek}
           onChange={(v) => {
@@ -452,14 +452,14 @@ export default function Registration() {
 
       {/* 소유자 선택 */}
       <section className="mb-6">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
           캐릭터 소유자 선택
         </label>
         {ownerProfiles.length > 0 ? (
           <select
             value={ownerName}
             onChange={e => handleOwnerSelect(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+            className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
           >
             <option value="">소유자를 선택하세요</option>
             {ownerProfiles.map(p => (
@@ -467,7 +467,7 @@ export default function Registration() {
             ))}
           </select>
         ) : (
-          <div className="text-sm text-gray-500 p-3 border border-gray-200 rounded-lg bg-gray-50">
+          <div className="text-sm text-gray-600 dark:text-gray-400 p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
             등록된 소유주가 없습니다. 먼저 "캐릭터 정보 입력" 메뉴에서 소유주를 등록해주세요.
           </div>
         )}
@@ -476,7 +476,7 @@ export default function Registration() {
       {/* 캐릭터 목록 */}
       <section className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-lg font-semibold text-gray-700">캐릭터 정보</h2>
+          <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300">캐릭터 정보</h2>
           <button
             onClick={addCharacter}
             className="px-3 py-1 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition-colors"
@@ -491,8 +491,8 @@ export default function Registration() {
               key={idx}
               className={`p-4 border rounded-lg transition-colors ${
                 char.participating
-                  ? 'border-gray-200 bg-gray-50'
-                  : 'border-gray-200 bg-gray-100 opacity-60'
+                  ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800'
+                  : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-900 opacity-60'
               }`}
             >
               <div className="flex items-center justify-between mb-3">
@@ -504,12 +504,12 @@ export default function Registration() {
                       onChange={e => updateCharacter(idx, 'participating', e.target.checked)}
                       className="w-4 h-4 text-indigo-600 rounded"
                     />
-                    <span className={`text-sm font-medium ${char.participating ? 'text-gray-700' : 'text-gray-400'}`}>
+                    <span className={`text-sm font-medium ${char.participating ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}`}>
                       캐릭터 {idx + 1}
                     </span>
                   </label>
                   {!char.participating && (
-                    <span className="text-xs text-gray-400">(미참여)</span>
+                    <span className="text-xs text-gray-400 dark:text-gray-500">(미참여)</span>
                   )}
                 </div>
                 {characters.length > 1 && (
@@ -524,18 +524,18 @@ export default function Registration() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">닉네임</label>
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">닉네임</label>
                   <input
                     type="text"
                     value={char.nickname}
                     onChange={e => updateCharacter(idx, 'nickname', e.target.value)}
                     placeholder="캐릭터 닉네임"
-                    className="w-full p-2 border border-gray-300 rounded text-sm"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">직업군</label>
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">직업군</label>
                   <div className="flex gap-1 flex-wrap">
                     {CLASS_TYPES.map(ct => (
                       <button
@@ -554,7 +554,7 @@ export default function Registration() {
                 </div>
 
                 <div>
-                  <label className="block text-xs text-gray-500 mb-1">전투력 (K)</label>
+                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">전투력 (K)</label>
                   <input
                     type="number"
                     value={char.combat_power || ''}
@@ -564,7 +564,7 @@ export default function Registration() {
                     placeholder="예: 150"
                     min={0}
                     step={0.1}
-                    className="w-full p-2 border border-gray-300 rounded text-sm"
+                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                   />
                 </div>
 
@@ -583,7 +583,7 @@ export default function Registration() {
                             }
                             className="w-4 h-4 text-indigo-600"
                           />
-                          <span className="text-sm text-gray-700">공팟 가도 상관 없음</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">공팟 가도 상관 없음</span>
                         </label>
                         <label className={`flex items-center gap-2 ${isSupport || char.can_clear_raid ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
                           <input
@@ -595,7 +595,7 @@ export default function Registration() {
                             }
                             className="w-4 h-4 text-orange-500"
                           />
-                          <span className="text-sm text-gray-700">공팟 스펙 미달(저스펙)</span>
+                          <span className="text-sm text-gray-700 dark:text-gray-300">공팟 스펙 미달(저스펙)</span>
                         </label>
                       </>
                     );
@@ -609,7 +609,7 @@ export default function Registration() {
 
       {/* 날짜 선택 */}
       <section className="mb-6">
-        <h2 className="text-lg font-semibold text-gray-700 mb-3">가능 날짜 선택</h2>
+        <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">가능 날짜 선택</h2>
         <div className="flex gap-2 flex-wrap mb-4">
           {weekDates.map(date => {
             const dateStr = formatDate(date);
@@ -621,7 +621,7 @@ export default function Registration() {
                 className={`px-3 py-2 rounded-lg text-sm border transition-colors ${
                   selected
                     ? 'bg-indigo-600 text-white border-indigo-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
               >
                 <div className="font-medium">{getDayName(date)}</div>
@@ -649,7 +649,7 @@ export default function Registration() {
             </label>
 
             {useBatchTime && (
-              <div className="p-3 border-2 border-indigo-300 rounded-lg bg-indigo-50">
+              <div className="p-3 border-2 border-indigo-300 dark:border-indigo-700 rounded-lg bg-indigo-50 dark:bg-indigo-900/30">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-indigo-700">일괄 설정</span>
@@ -660,7 +660,7 @@ export default function Registration() {
                         onChange={() => setBatchAllDay(!batchAllDay)}
                         className="w-3.5 h-3.5 text-indigo-600"
                       />
-                      <span className="text-xs text-gray-500">시간 무관</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">시간 무관</span>
                     </label>
                   </div>
                   {!batchAllDay && (
@@ -674,7 +674,7 @@ export default function Registration() {
                 </div>
 
                 {batchAllDay ? (
-                  <div className="text-sm text-gray-400 italic py-1">모든 시간대 가능</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 italic py-1">모든 시간대 가능</div>
                 ) : (
                   batchTimeRanges.map((tr, idx) => (
                     <div key={idx} className="flex items-center gap-2 mb-2">
@@ -685,13 +685,13 @@ export default function Registration() {
                           updated[idx] = { ...updated[idx], start: e.target.value };
                           setBatchTimeRanges(updated);
                         }}
-                        className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+                        className="p-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                       >
                         {timeSlots.map(t => (
                           <option key={t} value={t}>{t}</option>
                         ))}
                       </select>
-                      <span className="text-gray-500">~</span>
+                      <span className="text-gray-600 dark:text-gray-400">~</span>
                       <select
                         value={tr.end}
                         onChange={e => {
@@ -699,7 +699,7 @@ export default function Registration() {
                           updated[idx] = { ...updated[idx], end: e.target.value };
                           setBatchTimeRanges(updated);
                         }}
-                        className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+                        className="p-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                       >
                         {timeSlots.map(t => (
                           <option key={t} value={t}>{t}</option>
@@ -732,11 +732,11 @@ export default function Registration() {
             return (
               <div
                 key={ds.date}
-                className="mb-4 p-3 border border-gray-200 rounded-lg bg-gray-50"
+                className="mb-4 p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800"
               >
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold text-gray-700">
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                       {date.getMonth() + 1}/{date.getDate()} ({getDayName(date)})
                     </span>
                     <label className="flex items-center gap-1.5 cursor-pointer">
@@ -746,7 +746,7 @@ export default function Registration() {
                         onChange={() => toggleAllDay(ds.date)}
                         className="w-3.5 h-3.5 text-indigo-600"
                       />
-                      <span className="text-xs text-gray-500">시간 무관</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">시간 무관</span>
                     </label>
                   </div>
                   {!ds.allDay && (
@@ -760,7 +760,7 @@ export default function Registration() {
                 </div>
 
                 {ds.allDay ? (
-                  <div className="text-sm text-gray-400 italic py-1">모든 시간대 가능</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 italic py-1">모든 시간대 가능</div>
                 ) : (
                   ds.timeRanges.map((tr, idx) => (
                   <div key={idx} className="flex items-center gap-2 mb-2">
@@ -769,7 +769,7 @@ export default function Registration() {
                       onChange={e =>
                         updateTimeRange(ds.date, idx, 'start', e.target.value)
                       }
-                      className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+                      className="p-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                     >
                       {timeSlots.map(t => (
                         <option key={t} value={t}>
@@ -777,13 +777,13 @@ export default function Registration() {
                         </option>
                       ))}
                     </select>
-                    <span className="text-gray-500">~</span>
+                    <span className="text-gray-600 dark:text-gray-400">~</span>
                     <select
                       value={tr.end}
                       onChange={e =>
                         updateTimeRange(ds.date, idx, 'end', e.target.value)
                       }
-                      className="p-1.5 border border-gray-300 rounded text-sm bg-white"
+                      className="p-1.5 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
                     >
                       {timeSlots.map(t => (
                         <option key={t} value={t}>

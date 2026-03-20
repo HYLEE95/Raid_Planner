@@ -91,28 +91,28 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
       {/* 선택 버튼 */}
       <button
         onClick={() => setOpen(!open)}
-        className="w-full max-w-sm p-2 border border-gray-300 rounded-lg bg-white text-left flex items-center justify-between hover:border-indigo-400 transition-colors"
+        className="w-full max-w-sm p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-left flex items-center justify-between hover:border-indigo-400 transition-colors"
       >
-        <span className="text-gray-800">{formatWeekLabel(value)}</span>
-        <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <span className="text-gray-800 dark:text-gray-200">{formatWeekLabel(value)}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       {/* 캘린더 드롭다운 */}
       {open && (
-        <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-[300px] week-picker-dropdown">
+        <div className="absolute top-full left-0 mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-3 w-[300px] week-picker-dropdown">
           {/* 월 네비게이션 */}
           <div className="flex items-center justify-between mb-2">
-            <button onClick={prevMonth} className="p-1 hover:bg-gray-100 rounded text-gray-600">
+            <button onClick={prevMonth} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-700 dark:text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <span className="text-sm font-bold text-gray-800">
+            <span className="text-sm font-bold text-gray-800 dark:text-gray-200">
               {viewYear}년 {viewMonth + 1}월
             </span>
-            <button onClick={nextMonth} className="p-1 hover:bg-gray-100 rounded text-gray-600">
+            <button onClick={nextMonth} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-gray-700 dark:text-gray-300">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
               </svg>
@@ -122,7 +122,7 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
           {/* 요일 헤더 */}
           <div className="grid grid-cols-7 gap-0 mb-1">
             {DAY_HEADERS.map(d => (
-              <div key={d} className={`text-center text-xs font-medium py-1 ${d === '일' ? 'text-red-400' : d === '토' ? 'text-blue-400' : 'text-gray-500'}`}>
+              <div key={d} className={`text-center text-xs font-medium py-1 ${d === '일' ? 'text-red-500 dark:text-red-400' : d === '토' ? 'text-blue-500 dark:text-blue-400' : 'text-gray-600 dark:text-gray-400'}`}>
                 {d}
               </div>
             ))}
@@ -152,12 +152,12 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
                         : date.getDay() === 2
                           ? 'bg-indigo-100 text-indigo-700 rounded-r-lg'
                           : 'bg-indigo-100 text-indigo-700 rounded-none'
-                      : 'hover:bg-gray-100'
+                      : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                     }
                     ${!inWeek && isToday ? 'ring-2 ring-indigo-400 ring-inset' : ''}
-                    ${!inWeek && isSun ? 'text-red-400' : ''}
-                    ${!inWeek && isSat ? 'text-blue-400' : ''}
-                    ${!inWeek && !isSun && !isSat ? 'text-gray-700' : ''}
+                    ${!inWeek && isSun ? 'text-red-500 dark:text-red-400' : ''}
+                    ${!inWeek && isSat ? 'text-blue-500 dark:text-blue-400' : ''}
+                    ${!inWeek && !isSun && !isSat ? 'text-gray-700 dark:text-gray-300' : ''}
                   `}
                 >
                   <span>{date.getDate()}</span>
@@ -172,8 +172,8 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
           </div>
 
           {/* 선택된 주 표시 */}
-          <div className="mt-2 pt-2 border-t border-gray-100 text-center">
-            <span className="text-xs text-gray-500">
+          <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 text-center">
+            <span className="text-xs text-gray-600 dark:text-gray-400">
               선택: {formatWeekLabel(value)}
             </span>
           </div>

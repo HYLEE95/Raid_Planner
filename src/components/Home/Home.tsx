@@ -98,11 +98,11 @@ export default function Home() {
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">공격대 배치</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">공격대 배치</h1>
 
       {/* 레이드 선택 */}
       <div className="mb-4">
-        <label className="block text-sm font-semibold text-gray-700 mb-2">레이드 선택</label>
+        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">레이드 선택</label>
         <div className="flex gap-2">
           {RAID_TYPES.map(rt => (
             <button
@@ -114,7 +114,7 @@ export default function Home() {
               className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors ${
                 selectedRaid === rt
                   ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-300'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-300'
               }`}
             >
               {RAID_CONFIGS[rt].label}
@@ -129,7 +129,7 @@ export default function Home() {
           {/* 주차 선택 + 배치 버튼 */}
           <div className="mb-6 flex items-end gap-3 flex-wrap">
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">주차 선택</label>
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">주차 선택</label>
               <WeekPicker
                 value={selectedWeek}
                 onChange={(v) => {
@@ -140,7 +140,7 @@ export default function Home() {
             </div>
             <button
               onClick={() => { loadData(); }}
-              className="px-3 py-2.5 rounded-lg font-semibold text-gray-600 bg-white border border-gray-300 hover:bg-gray-50 active:bg-gray-100 transition-colors flex items-center gap-1.5"
+              className="px-3 py-2.5 rounded-lg font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 active:bg-gray-100 transition-colors flex items-center gap-1.5"
               title="새로고침"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -177,25 +177,25 @@ export default function Home() {
 
           {/* 통계 */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-indigo-600">{registrations.length}</div>
-              <div className="text-xs text-gray-500">신청자</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400">신청자</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-indigo-600">
                 {registrations.reduce((s, r) => s + r.characters.length, 0)}
               </div>
-              <div className="text-xs text-gray-500">캐릭터</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400">캐릭터</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-indigo-600">
                 {compositions.length > 0 ? compositions[0].raids.length : 0}
               </div>
-              <div className="text-xs text-gray-500">공격대</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400">공격대</div>
             </div>
-            <div className="bg-white border border-gray-200 rounded-lg p-3 text-center">
+            <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-indigo-600">{compositions.length}</div>
-              <div className="text-xs text-gray-500">가능 조합</div>
+              <div className="text-xs text-gray-600 dark:text-gray-400">가능 조합</div>
             </div>
           </div>
 
@@ -213,11 +213,11 @@ export default function Home() {
                 {registrations.map(reg => (
                   <div
                     key={reg.id}
-                    className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg"
+                    className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
                   >
                     <div>
-                      <span className="font-medium text-gray-800">{reg.owner_name}</span>
-                      <span className="text-sm text-gray-500 ml-2">
+                      <span className="font-medium text-gray-800 dark:text-gray-200">{reg.owner_name}</span>
+                      <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
                         캐릭터: {reg.characters.map(c => `${c.nickname}(${c.class_type}/${c.combat_power}K)`).join(', ')}
                       </span>
                     </div>
@@ -239,7 +239,7 @@ export default function Home() {
                   </div>
                 ))}
                 {registrations.length === 0 && (
-                  <p className="text-gray-400 text-sm">아직 신청자가 없습니다.</p>
+                  <p className="text-gray-500 dark:text-gray-400 text-sm">아직 신청자가 없습니다.</p>
                 )}
               </div>
             )}
@@ -247,15 +247,15 @@ export default function Home() {
 
           {/* 인원 부족 메시지 */}
           {insufficientMsg && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-center">
-              <p className="text-red-700 font-semibold">{insufficientMsg}</p>
-              <p className="text-sm text-red-500 mt-1">신청 인원을 추가하거나 시간대를 조정해주세요.</p>
+            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-lg text-center">
+              <p className="text-red-700 dark:text-red-300 font-semibold">{insufficientMsg}</p>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-1">신청 인원을 추가하거나 시간대를 조정해주세요.</p>
             </div>
           )}
 
           {/* 결과 */}
           {loading ? (
-            <div className="text-center py-12 text-gray-500">배치 중...</div>
+            <div className="text-center py-12 text-gray-600 dark:text-gray-400">배치 중...</div>
           ) : (
             <RaidResult
               compositions={compositions}
