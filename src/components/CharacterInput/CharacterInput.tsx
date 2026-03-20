@@ -4,11 +4,8 @@ import {
   saveCharacterProfile,
   getCharacterProfiles,
   deleteCharacterProfile,
-  getRegistrationsByWeek,
-  getWednesday,
-  formatDate,
 } from '../../lib/storage';
-import type { ClassType, DBCharacterProfile, DBRegistration, RaidType } from '../../lib/types';
+import type { ClassType, DBCharacterProfile, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
 
 const CLASS_TYPES: ClassType[] = ['근딜', '원딜', '호법성', '치유성'];
@@ -41,8 +38,6 @@ export default function CharacterInput() {
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState('');
 
   useEffect(() => {
     if (!selectedRaid) { setProfiles([]); return; }
@@ -146,62 +141,6 @@ export default function CharacterInput() {
     loadProfiles();
   };
 
-  // 이번주차 신청 데이터에서 캐릭터 프로필 일괄 저장
-  const handleImportFromRegistrations = async () => {
-    if (!selectedRaid) return;
-    setImporting(true);
-    setImportResult('');
-    try {
-      const currentWeek = formatDate(getWednesday(new Date()));
-      const registrations: DBRegistration[] = await getRegistrationsByWeek(currentWeek, selectedRaid);
-
-      if (registrations.length === 0) {
-        setImportResult('이번 주차에 신청된 데이터가 없습니다.');
-        setImporting(false);
-        return;
-      }
-
-      const existingProfiles = await getCharacterProfiles(selectedRaid);
-      const existingOwners = new Set(existingProfiles.map(p => p.owner_name));
-
-      let importedCount = 0;
-      let updatedCount = 0;
-
-      for (const reg of registrations) {
-        const existing = existingProfiles.find(p => p.owner_name === reg.owner_name);
-        const profile: DBCharacterProfile = {
-          id: existing?.id || generateId(),
-          owner_name: reg.owner_name,
-          raid_type: selectedRaid,
-          characters: reg.characters.map(c => ({
-            nickname: c.nickname,
-            class_type: c.class_type,
-            combat_power: c.combat_power,
-            can_clear_raid: c.can_clear_raid,
-            is_underpowered: c.is_underpowered ?? false,
-          })),
-          created_at: new Date().toISOString(),
-        };
-        await saveCharacterProfile(profile);
-        if (existingOwners.has(reg.owner_name)) {
-          updatedCount++;
-        } else {
-          importedCount++;
-        }
-      }
-
-      const parts: string[] = [];
-      if (importedCount > 0) parts.push(`${importedCount}명 새로 저장`);
-      if (updatedCount > 0) parts.push(`${updatedCount}명 업데이트`);
-      setImportResult(parts.join(', ') + ' 완료!');
-      loadProfiles();
-    } catch (err) {
-      setImportResult('가져오기 실패: ' + (err as Error).message);
-    } finally {
-      setImporting(false);
-    }
-  };
-
   const handleStartInput = () => {
     setMode('input');
     resetForm();
@@ -274,25 +213,6 @@ export default function CharacterInput() {
                 </svg>
                 캐릭터 정보 수정
               </button>
-            </div>
-
-            {/* 이번 주차 신청 데이터 가져오기 */}
-            <div className="mt-3">
-              <button
-                onClick={handleImportFromRegistrations}
-                disabled={importing}
-                className="w-full py-2 rounded-lg font-semibold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm flex items-center justify-center gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                {importing ? '가져오는 중...' : '이번 주차 신청 데이터에서 캐릭터 정보 가져오기'}
-              </button>
-              {importResult && (
-                <p className={`text-sm mt-2 ${importResult.includes('실패') || importResult.includes('없습니다') ? 'text-red-500' : 'text-green-600'}`}>
-                  {importResult}
-                </p>
-              )}
             </div>
           </section>
         )}

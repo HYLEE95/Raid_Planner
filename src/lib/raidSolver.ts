@@ -101,11 +101,15 @@ function buildSlotGroups(registrations: DBRegistration[]): SlotGroup[] {
   return result;
 }
 
-// 딜러(근딜/원딜)만의 평균 전투력 (항상 3으로 나눔)
+// 팀 평균 전투력 (항상 3으로 나눔)
+// 서포트 2명 이상 시 호법성의 전투력도 평균 계산에 포함
 function calcTeamAvg(members: RaidMember[]): number {
-  const dealers = members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
-  if (dealers.length === 0) return 0;
-  return dealers.reduce((sum, m) => sum + m.combat_power, 0) / 3;
+  const supportCount = members.filter(m => m.class_type === '치유성' || m.class_type === '호법성').length;
+  const countable = supportCount >= 2
+    ? members.filter(m => m.class_type === '근딜' || m.class_type === '원딜' || m.class_type === '호법성')
+    : members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
+  if (countable.length === 0) return 0;
+  return countable.reduce((sum, m) => sum + m.combat_power, 0) / 3;
 }
 
 function createBot(classType: ClassType, combatPower: number, idx: number): BotCharacter {
@@ -129,7 +133,7 @@ function sortRaidsBotsLast(raids: RaidGroup[]): RaidGroup[] {
 
 const MAX_TOTAL_BOTS = 5;
 
-function scoreComposition(comp: RaidComposition): number {
+function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라'): number {
   let score = 0;
   const totalBots = comp.raids.reduce((sum, r) => sum + r.botCount, 0);
 
@@ -220,6 +224,25 @@ function scoreComposition(comp: RaidComposition): number {
   // 봇이 마지막 공격대가 아닌 곳에 있으면 큰 패널티
   for (let i = 0; i < comp.raids.length - 1; i++) {
     if (comp.raids[i].botCount > 0) score += 5000;
+  }
+
+  // 2파티 전투력이 1파티보다 높아야 함
+  for (const raid of comp.raids) {
+    if (raid.team1.avgCombatPower > raid.team2.avgCombatPower) {
+      score += (raid.team1.avgCombatPower - raid.team2.avgCombatPower) * 100;
+    }
+  }
+
+  // 루드라: 파티 평균 DPS 160K 이상 선호
+  if (raidType === '루드라') {
+    for (const raid of comp.raids) {
+      if (raid.team1.avgCombatPower < 160 && raid.botCount === 0) {
+        score += (160 - raid.team1.avgCombatPower) * 50;
+      }
+      if (raid.team2.avgCombatPower < 160 && raid.botCount === 0) {
+        score += (160 - raid.team2.avgCombatPower) * 50;
+      }
+    }
   }
 
   // 제외 우선순위
@@ -333,14 +356,6 @@ function tryFormRaid(
   const teamDpsSum = (team: RaidMember[]) =>
     team.filter(m => m.class_type === '근딜' || m.class_type === '원딜').reduce((s, m) => s + m.combat_power, 0);
 
-  // 호법성이 있는 팀 확인 (강한 딜러 배치 선호)
-  const team1HasTank = team1Members.some(m => m.class_type === '호법성' && !('isBot' in m && m.isBot));
-
-  // 평균 전투력 계산 (강한 딜러 판단 기준)
-  const avgDpsPower = remainingDps.length > 0
-    ? remainingDps.reduce((s, c) => s + c.combat_power, 0) / remainingDps.length
-    : 0;
-
   for (const char of remainingDps) {
     if (team1Members.length >= 4 && team2Members.length >= 4) break;
     if (isOwnerInRaid(char.owner_id)) continue;
@@ -349,14 +364,11 @@ function tryFormRaid(
     const can2 = team2Members.length < 4;
 
     if (can1 && can2) {
-      // 전투력이 강한 딜러는 호법성이 있는 팀에 배치 선호
-      const isStrong = char.combat_power > avgDpsPower;
-      if (isStrong && team1HasTank) {
-        addToTeam(team1Members, char);
-      } else if (teamDpsSum(team1Members) <= teamDpsSum(team2Members)) {
-        addToTeam(team1Members, char);
-      } else {
+      // 2파티 전투력이 1파티보다 높도록 배치
+      if (teamDpsSum(team2Members) <= teamDpsSum(team1Members)) {
         addToTeam(team2Members, char);
+      } else {
+        addToTeam(team1Members, char);
       }
     } else if (can1) {
       addToTeam(team1Members, char);
@@ -429,6 +441,32 @@ function tryFormRaid(
   const team2Tanks = team2Members.filter(m => m.class_type === '호법성').length;
   if (team2Healers < 1 || team2Tanks !== 0) return null;
 
+  // 후처리: 2파티 전투력이 1파티보다 높도록 DPS 스왑
+  const t1Avg = calcTeamAvg(team1Members);
+  const t2Avg = calcTeamAvg(team2Members);
+  if (t1Avg > t2Avg) {
+    const t1Dps = team1Members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
+    const t2Dps = team2Members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
+    let bestSwap: [number, number] | null = null;
+    let bestDiff = Infinity;
+    for (let i = 0; i < t1Dps.length; i++) {
+      for (let j = 0; j < t2Dps.length; j++) {
+        const newT1Sum = teamDpsSum(team1Members) - t1Dps[i].combat_power + t2Dps[j].combat_power;
+        const newT2Sum = teamDpsSum(team2Members) - t2Dps[j].combat_power + t1Dps[i].combat_power;
+        if (newT2Sum > newT1Sum) {
+          const diff = newT2Sum - newT1Sum;
+          if (diff < bestDiff) { bestDiff = diff; bestSwap = [i, j]; }
+        }
+      }
+    }
+    if (bestSwap) {
+      const [si, sj] = bestSwap;
+      const t1Idx = team1Members.indexOf(t1Dps[si]);
+      const t2Idx = team2Members.indexOf(t2Dps[sj]);
+      [team1Members[t1Idx], team2Members[t2Idx]] = [team2Members[t2Idx], team1Members[t1Idx]];
+    }
+  }
+
   const team1: Team = { members: team1Members, avgCombatPower: calcTeamAvg(team1Members) };
   const team2: Team = { members: team2Members, avgCombatPower: calcTeamAvg(team2Members) };
 
@@ -487,7 +525,8 @@ function getOwnersInOverlappingRaids(raids: RaidGroup[], slot: TimeSlot): Set<st
 function crossSlotComposition(
   slotGroups: SlotGroup[],
   maxBotsPerRaid: number,
-  strategy: 'greedy' | 'balanced'
+  strategy: 'greedy' | 'balanced',
+  raidType: RaidType = '루드라'
 ): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
   if (allChars.length === 0) return null;
@@ -548,12 +587,12 @@ function crossSlotComposition(
     excludedCharacters: getExcluded(allChars, usedCharIds),
     score: 0,
   };
-  comp.score = scoreComposition(comp);
+  comp.score = scoreComposition(comp, raidType);
   return comp;
 }
 
 // 균등 분배 크로스-시간대
-function crossSlotBalanced(slotGroups: SlotGroup[], maxBots: number): RaidComposition | null {
+function crossSlotBalanced(slotGroups: SlotGroup[], maxBots: number, raidType: RaidType = '루드라'): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
   if (allChars.length === 0) return null;
 
@@ -639,7 +678,7 @@ function crossSlotBalanced(slotGroups: SlotGroup[], maxBots: number): RaidCompos
     excludedCharacters: getExcluded(allChars, usedCharIds),
     score: 0,
   };
-  comp.score = scoreComposition(comp);
+  comp.score = scoreComposition(comp, raidType);
   return comp;
 }
 
@@ -659,7 +698,8 @@ function shuffle<T>(arr: T[], seed: number): T[] {
 function shuffledComposition(
   slotGroups: SlotGroup[],
   maxBotsPerRaid: number,
-  seed: number
+  seed: number,
+  raidType: RaidType = '루드라'
 ): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
   if (allChars.length === 0) return null;
@@ -718,7 +758,7 @@ function shuffledComposition(
     excludedCharacters: getExcluded(allChars, usedCharIds),
     score: 0,
   };
-  comp.score = scoreComposition(comp);
+  comp.score = scoreComposition(comp, raidType);
   return comp;
 }
 
@@ -727,7 +767,8 @@ function shuffledComposition(
 function maxRaidsComposition(
   slotGroups: SlotGroup[],
   maxBotsPerRaid: number,
-  seed: number
+  seed: number,
+  raidType: RaidType = '루드라'
 ): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
   if (allChars.length === 0) return null;
@@ -810,7 +851,7 @@ function maxRaidsComposition(
     excludedCharacters: getExcluded(allChars, usedCharIds),
     score: 0,
   };
-  comp.score = scoreComposition(comp);
+  comp.score = scoreComposition(comp, raidType);
   return comp;
 }
 
@@ -833,27 +874,27 @@ function filterSlotGroups(slotGroups: SlotGroup[], excludeIds: Set<string>): Slo
 }
 
 // 모든 전략으로 조합 생성
-function generateCompositions(slotGroups: SlotGroup[], maxBots: number): RaidComposition[] {
+function generateCompositions(slotGroups: SlotGroup[], maxBots: number, raidType: RaidType = '루드라'): RaidComposition[] {
   const allResults: RaidComposition[] = [];
 
-  const greedy = crossSlotComposition(slotGroups, maxBots, 'greedy');
+  const greedy = crossSlotComposition(slotGroups, maxBots, 'greedy', raidType);
   if (greedy) allResults.push(greedy);
 
-  const balanced = crossSlotBalanced(slotGroups, maxBots);
+  const balanced = crossSlotBalanced(slotGroups, maxBots, raidType);
   if (balanced) allResults.push(balanced);
 
-  const timeOrdered = crossSlotComposition(slotGroups, maxBots, 'balanced');
+  const timeOrdered = crossSlotComposition(slotGroups, maxBots, 'balanced', raidType);
   if (timeOrdered) allResults.push(timeOrdered);
 
   // 최대 공격대 수 전략 (다양한 seed)
   for (let seed = 0; seed < 30; seed++) {
-    const comp = maxRaidsComposition(slotGroups, maxBots, seed * 3571);
+    const comp = maxRaidsComposition(slotGroups, maxBots, seed * 3571, raidType);
     if (comp) allResults.push(comp);
   }
 
   // 셔플 기반 다양한 조합 생성 (50회)
   for (let seed = 1; seed <= 50; seed++) {
-    const comp = shuffledComposition(slotGroups, maxBots, seed * 7919);
+    const comp = shuffledComposition(slotGroups, maxBots, seed * 7919, raidType);
     if (comp) allResults.push(comp);
   }
 
@@ -867,7 +908,7 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
 
   const slotGroups = buildSlotGroups(registrations);
   const maxBots = 4;
-  let allResults = generateCompositions(slotGroups, maxBots);
+  let allResults = generateCompositions(slotGroups, maxBots, raidType);
 
   // 스펙미달+봇 동일 공격대 조합 필터링
   const cleanResults = allResults.filter(c => !hasUnderpoweredWithBot(c));
@@ -884,7 +925,7 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
       const filteredSlots = filterSlotGroups(slotGroups, excludeIds);
       if (filteredSlots.length === 0) continue;
 
-      const retryResults = generateCompositions(filteredSlots, maxBots);
+      const retryResults = generateCompositions(filteredSlots, maxBots, raidType);
       const retryClean = retryResults.filter(c => !hasUnderpoweredWithBot(c));
 
       if (retryClean.length > 0) {
@@ -899,7 +940,7 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
 
         for (const comp of retryClean) {
           comp.excludedCharacters = [...comp.excludedCharacters, ...excludedUnders];
-          comp.score = scoreComposition(comp);
+          comp.score = scoreComposition(comp, raidType);
         }
         allResults = retryClean;
         break;

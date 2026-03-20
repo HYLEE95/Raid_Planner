@@ -10,6 +10,7 @@ import {
   saveRegistration,
   deleteRegistration,
   getCharacterProfiles,
+  saveCharacterProfile,
 } from '../../lib/storage';
 import WeekPicker from '../WeekPicker/WeekPicker';
 import type { ClassType, TimeSlot, DBRegistration, DBCharacterProfile, RaidType } from '../../lib/types';
@@ -278,6 +279,29 @@ export default function Registration() {
       };
 
       await saveRegistration(registration);
+
+      // 신청 데이터를 캐릭터 프로필 DB에 자동 저장/업데이트
+      try {
+        const existingProfiles = await getCharacterProfiles(selectedRaid!);
+        const existing = existingProfiles.find(p => p.owner_name === ownerName.trim());
+        const profile: import('../../lib/types').DBCharacterProfile = {
+          id: existing?.id || generateId(),
+          owner_name: ownerName.trim(),
+          raid_type: selectedRaid!,
+          characters: characters.map(c => ({
+            nickname: c.nickname.trim(),
+            class_type: c.class_type,
+            combat_power: c.combat_power,
+            can_clear_raid: c.can_clear_raid,
+            is_underpowered: c.is_underpowered,
+          })),
+          created_at: new Date().toISOString(),
+        };
+        await saveCharacterProfile(profile);
+      } catch (profileErr) {
+        console.error('캐릭터 프로필 자동 저장 실패:', profileErr);
+      }
+
       setSaved(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setTimeout(() => setSaved(false), 5000);

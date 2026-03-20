@@ -37,7 +37,10 @@ function MemberCard({ member }: { member: RaidMember }) {
       >
         {member.class_type}
       </span>
-      <span className={`text-sm font-medium ${isBot ? 'text-gray-400 italic' : 'text-gray-800'}`}>
+      <span
+        className={`font-medium truncate min-w-0 ${isBot ? 'text-gray-400 italic' : 'text-gray-800'}`}
+        style={{ fontSize: member.nickname.length > 10 ? '10px' : member.nickname.length > 6 ? '12px' : '14px' }}
+      >
         {member.nickname}
       </span>
       {isUnderpowered && (
