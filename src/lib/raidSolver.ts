@@ -803,7 +803,7 @@ function applyRescue(
 // === 크로스-시간대 스케줄링 ===
 function crossSlotComposition(
   slotGroups: SlotGroup[],
-  maxBotsPerRaid: number,
+  _maxBotsPerRaid: number,
   strategy: 'greedy' | 'balanced',
   raidType: RaidType = '루드라'
 ): RaidComposition | null {
@@ -875,7 +875,7 @@ function crossSlotComposition(
 }
 
 // 균등 분배 크로스-시간대
-function crossSlotBalanced(slotGroups: SlotGroup[], maxBots: number, raidType: RaidType = '루드라'): RaidComposition | null {
+function crossSlotBalanced(slotGroups: SlotGroup[], _maxBots: number, raidType: RaidType = '루드라'): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
   if (allChars.length === 0) return null;
 
@@ -998,7 +998,7 @@ function shuffle<T>(arr: T[], seed: number): T[] {
 // 셔플된 캐릭터 순서로 크로스-시간대 구성
 function shuffledComposition(
   slotGroups: SlotGroup[],
-  maxBotsPerRaid: number,
+  _maxBotsPerRaid: number,
   seed: number,
   raidType: RaidType = '루드라'
 ): RaidComposition | null {
@@ -1071,7 +1071,7 @@ function shuffledComposition(
 // 서포트를 DPS 역할에서 분리하여, 다른 시간대에서 서포트가 부족하지 않게 함
 function maxRaidsComposition(
   slotGroups: SlotGroup[],
-  maxBotsPerRaid: number,
+  _maxBotsPerRaid: number,
   seed: number,
   raidType: RaidType = '루드라'
 ): RaidComposition | null {
@@ -1168,7 +1168,7 @@ function maxRaidsComposition(
 // 가용 시간대가 적은 소유주의 슬롯에서 먼저 공격대를 구성 (봇 허용)
 function inclusiveComposition(
   slotGroups: SlotGroup[],
-  maxBotsPerRaid: number,
+  _maxBotsPerRaid: number,
   raidType: RaidType = '루드라'
 ): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
@@ -1458,7 +1458,7 @@ function tryIncludeExcludedOwners(comp: RaidComposition, slotGroups: SlotGroup[]
             combat_power: replacedMember.combat_power,
             can_clear_raid: (replacedMember as any).can_clear_raid ?? false,
             is_underpowered: (replacedMember as any).is_underpowered ?? false,
-            ownerName: replacedMember.ownerName || '',
+            ownerName: (replacedMember as any).ownerName || '',
           });
           newComp.excludedCharacters = newExcluded;
 

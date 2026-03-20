@@ -166,6 +166,7 @@ export default function Registration() {
           is_underpowered: c.is_underpowered ?? false,
           participating: true,
           has_destruction_robe: c.has_destruction_robe ?? false,
+          is_blast_lancer: c.is_blast_lancer ?? false,
           has_soul_weapon: c.has_soul_weapon ?? false,
           desired_clears: c.desired_clears ?? 3,
         })));
@@ -196,6 +197,7 @@ export default function Registration() {
               is_underpowered: c.is_underpowered ?? false,
               participating: false,
               has_destruction_robe: c.has_destruction_robe ?? false,
+              is_blast_lancer: c.is_blast_lancer ?? false,
               has_soul_weapon: c.has_soul_weapon ?? false,
               desired_clears: c.desired_clears ?? 3,
             }));
