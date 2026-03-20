@@ -9,6 +9,7 @@ import {
   generateId,
   saveRegistration,
   deleteRegistration,
+  getRegistrationsByWeek,
   getCharacterProfiles,
   saveCharacterProfile,
 } from '../../lib/storage';
@@ -31,6 +32,7 @@ interface CharacterForm {
   combat_power: number;
   can_clear_raid: boolean;
   is_underpowered: boolean;
+  participating: boolean; // 이번 레이드 참여 여부
 }
 
 interface DateTimeSelection {
@@ -48,7 +50,7 @@ export default function Registration() {
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
   const [ownerName, setOwnerName] = useState('');
   const [characters, setCharacters] = useState<CharacterForm[]>([
-    { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false },
+    { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false, participating: true },
   ]);
   const [selectedWeek, setSelectedWeek] = useState(() => {
     return formatDate(getWednesday(new Date()));
@@ -77,6 +79,7 @@ export default function Registration() {
         combat_power: c.combat_power,
         can_clear_raid: c.can_clear_raid,
         is_underpowered: c.is_underpowered ?? false,
+        participating: true,
       }))
     );
     // 시간대 복원
@@ -102,9 +105,63 @@ export default function Registration() {
     getCharacterProfiles(selectedRaid).then(setOwnerProfiles).catch(console.error);
   }, [selectedRaid]);
 
-  const handleOwnerSelect = (name: string) => {
+  const handleOwnerSelect = async (name: string) => {
     setOwnerName(name);
     if (!name) return;
+
+    // 해당 주차에 이미 신청이 있으면 기존 데이터로 로드 (수정 모드)
+    try {
+      const existingRegs = await getRegistrationsByWeek(selectedWeek, selectedRaid!);
+      const existingReg = existingRegs.find(r => r.owner_name === name);
+      if (existingReg) {
+        setEditId(existingReg.id);
+        setCharacters(existingReg.characters.map(c => ({
+          nickname: c.nickname,
+          class_type: c.class_type,
+          combat_power: c.combat_power,
+          can_clear_raid: c.can_clear_raid,
+          is_underpowered: c.is_underpowered ?? false,
+          participating: true,
+        })));
+        // 시간대 복원
+        const dateMap = new Map<string, { start: string; end: string }[]>();
+        for (const ts of existingReg.time_slots) {
+          if (!dateMap.has(ts.date)) dateMap.set(ts.date, []);
+          dateMap.get(ts.date)!.push({ start: ts.start_time, end: ts.end_time });
+        }
+        setDateSelections(
+          Array.from(dateMap.entries()).map(([date, timeRanges]) => {
+            const isAllDay = timeRanges.length === 1 && timeRanges[0].start === '00:00' && timeRanges[0].end === '23:30';
+            return { date, allDay: isAllDay, timeRanges };
+          })
+        );
+
+        // 프로필에서 미참여 캐릭터도 로드 (참여 체크 해제 상태로)
+        const profile = ownerProfiles.find(p => p.owner_name === name);
+        if (profile) {
+          const regNicknames = new Set(existingReg.characters.map(c => c.nickname));
+          const extraChars = profile.characters
+            .filter(c => !regNicknames.has(c.nickname))
+            .map(c => ({
+              nickname: c.nickname,
+              class_type: c.class_type,
+              combat_power: c.combat_power,
+              can_clear_raid: c.can_clear_raid,
+              is_underpowered: c.is_underpowered ?? false,
+              participating: false,
+            }));
+          if (extraChars.length > 0) {
+            setCharacters(prev => [...prev, ...extraChars]);
+          }
+        }
+        return;
+      }
+    } catch (err) {
+      console.error('기존 신청 조회 실패:', err);
+    }
+
+    // 기존 신청이 없으면 프로필에서 로드
+    setEditId(null);
     const profile = ownerProfiles.find(p => p.owner_name === name);
     if (profile) {
       setCharacters(profile.characters.map(c => ({
@@ -113,6 +170,7 @@ export default function Registration() {
         combat_power: c.combat_power,
         can_clear_raid: c.can_clear_raid,
         is_underpowered: c.is_underpowered ?? false,
+        participating: true,
       })));
     }
   };
@@ -126,7 +184,7 @@ export default function Registration() {
   const addCharacter = () => {
     setCharacters([
       ...characters,
-      { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false },
+      { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false, participating: true },
     ]);
   };
 
@@ -216,18 +274,19 @@ export default function Registration() {
   const isValid = () => {
     if (!selectedRaid) return false;
     if (!ownerName.trim()) return false;
-    if (characters.some(c => !c.nickname.trim() || c.combat_power <= 0)) return false;
+    const activeChars = characters.filter(c => c.participating);
+    if (activeChars.length === 0) return false;
+    if (activeChars.some(c => !c.nickname.trim() || c.combat_power <= 0)) return false;
     if (dateSelections.length === 0) return false;
     if (useBatchTime) {
-      // 일괄 설정 모드 유효성
       if (!batchAllDay && batchTimeRanges.length === 0) return false;
       if (!batchAllDay && batchTimeRanges.some(tr => tr.start >= tr.end)) return false;
     } else {
       if (dateSelections.some(d => !d.allDay && d.timeRanges.length === 0)) return false;
       if (dateSelections.some(d => !d.allDay && d.timeRanges.some(tr => tr.start >= tr.end))) return false;
     }
-    // 닉네임 중복 체크
-    const nicknames = characters.map(c => c.nickname.trim());
+    // 닉네임 중복 체크 (참여 캐릭터만)
+    const nicknames = activeChars.map(c => c.nickname.trim());
     if (new Set(nicknames).size !== nicknames.length) return false;
     return true;
   };
@@ -237,10 +296,10 @@ export default function Registration() {
 
     setSaving(true);
     try {
+      const activeChars = characters.filter(c => c.participating);
       const timeSlotList: TimeSlot[] = [];
       for (const ds of dateSelections) {
         if (useBatchTime) {
-          // 일괄 설정 사용
           if (batchAllDay) {
             timeSlotList.push({ date: ds.date, start_time: '00:00', end_time: '23:30' });
           } else {
@@ -257,16 +316,28 @@ export default function Registration() {
         }
       }
 
+      // 기존 신청이 있으면 수정 모드로 자동 전환
+      let existingId = editId;
+      if (!existingId) {
+        try {
+          const existingRegs = await getRegistrationsByWeek(selectedWeek, selectedRaid!);
+          const existing = existingRegs.find(r => r.owner_name === ownerName.trim());
+          if (existing) existingId = existing.id;
+        } catch (err) {
+          console.error('기존 신청 확인 실패:', err);
+        }
+      }
+
       // 수정 모드: 기존 데이터 삭제 후 새로 저장
-      if (editId) {
-        await deleteRegistration(editId);
+      if (existingId) {
+        await deleteRegistration(existingId);
       }
 
       const registration: DBRegistration = {
-        id: editId || generateId(),
+        id: existingId || generateId(),
         owner_name: ownerName.trim(),
         raid_type: selectedRaid!,
-        characters: characters.map(c => ({
+        characters: activeChars.map(c => ({
           nickname: c.nickname.trim(),
           class_type: c.class_type,
           combat_power: c.combat_power,
@@ -275,7 +346,7 @@ export default function Registration() {
         })),
         week_start: selectedWeek,
         time_slots: timeSlotList,
-        created_at: editId ? (editData?.created_at || new Date().toISOString()) : new Date().toISOString(),
+        created_at: existingId ? (editData?.created_at || new Date().toISOString()) : new Date().toISOString(),
       };
 
       await saveRegistration(registration);
@@ -316,7 +387,7 @@ export default function Registration() {
       // 폼 리셋
       setOwnerName('');
       setCharacters([
-        { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false },
+        { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false, participating: true },
       ]);
       setDateSelections([]);
     } catch (err) {
@@ -334,7 +405,13 @@ export default function Registration() {
 
       {saved && (
         <div className="mb-4 p-3 bg-green-100 text-green-800 rounded-lg border border-green-300">
-          신청이 완료되었습니다!
+          {editId ? '신청이 수정되었습니다!' : '신청이 완료되었습니다!'}
+        </div>
+      )}
+
+      {editId && !saved && (
+        <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 text-sm">
+          이미 신청된 소유주입니다. 수정 후 저장하면 기존 신청이 업데이트됩니다.
         </div>
       )}
 
@@ -412,12 +489,29 @@ export default function Registration() {
           {characters.map((char, idx) => (
             <div
               key={idx}
-              className="p-4 border border-gray-200 rounded-lg bg-gray-50"
+              className={`p-4 border rounded-lg transition-colors ${
+                char.participating
+                  ? 'border-gray-200 bg-gray-50'
+                  : 'border-gray-200 bg-gray-100 opacity-60'
+              }`}
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-medium text-gray-600">
-                  캐릭터 {idx + 1}
-                </span>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={char.participating}
+                      onChange={e => updateCharacter(idx, 'participating', e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 rounded"
+                    />
+                    <span className={`text-sm font-medium ${char.participating ? 'text-gray-700' : 'text-gray-400'}`}>
+                      캐릭터 {idx + 1}
+                    </span>
+                  </label>
+                  {!char.participating && (
+                    <span className="text-xs text-gray-400">(미참여)</span>
+                  )}
+                </div>
                 {characters.length > 1 && (
                   <button
                     onClick={() => removeCharacter(idx)}
