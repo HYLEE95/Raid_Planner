@@ -473,119 +473,147 @@ function tryFormRaid(
     return null;
   }
 
-  // 나머지 배치 (DPS 우선, 전투력 내림차순 — 강한 캐릭 우선 배치로 제외 방지)
+  // 나머지 배치: DPS + 강한 서포터를 전투력순으로 통합 경쟁
+  // 강한 서포터는 DPS 슬롯에 배치하여 평균 전투력 상승에 기여
   const remainingDps = eligible
-    .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '근딜' || c.class_type === '원딜'))
+    .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '근딜' || c.class_type === '원딜'));
+  const remainingExtraSupports = eligible
+    .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '치유성' || c.class_type === '호법성'));
+
+  // DPS + 서포터를 전투력순으로 통합 정렬
+  const allCandidates = [...remainingDps, ...remainingExtraSupports]
     .sort((a, b) => b.combat_power - a.combat_power);
 
   const teamDpsSum = (team: RaidMember[]) =>
     team.filter(m => m.class_type === '근딜' || m.class_type === '원딜').reduce((s, m) => s + m.combat_power, 0);
 
-  for (const char of remainingDps) {
+  // 서포터를 팀에 배치할 수 있는지 확인 (중복 방지)
+  const canPlaceSupportInTeam = (team: RaidMember[], char: CharacterWithOwner): boolean => {
+    if (char.class_type === '호법성') {
+      return !team.some(m => m.class_type === '호법성');
+    } else if (char.class_type === '치유성') {
+      return !team.some(m => m.class_type === '치유성');
+    }
+    return true;
+  };
+
+  const isSupport = (ct: string) => ct === '치유성' || ct === '호법성';
+
+  for (const char of allCandidates) {
     if (team1Members.length >= 4 && team2Members.length >= 4) break;
     if (isOwnerInRaid(char.owner_id)) continue;
 
     const can1 = team1Members.length < 4;
     const can2 = team2Members.length < 4;
 
-    if (can1 && can2) {
-      // 근딜/원딜 분산: 한쪽 팀에 해당 타입이 없으면 우선 배치
-      const t1HasType = team1Members.some(m => m.class_type === char.class_type);
-      const t2HasType = team2Members.some(m => m.class_type === char.class_type);
-      if (!t1HasType && t2HasType) {
+    // 서포터인 경우 중복 체크
+    if (isSupport(char.class_type)) {
+      const canPlace1 = can1 && canPlaceSupportInTeam(team1Members, char);
+      const canPlace2 = can2 && canPlaceSupportInTeam(team2Members, char);
+      if (!canPlace1 && !canPlace2) continue;
+      if (canPlace1 && canPlace2) {
+        const t1Support = countSupportInTeam(team1Members);
+        const t2Support = countSupportInTeam(team2Members);
+        if (t1Support <= t2Support) {
+          addToTeam(team1Members, char);
+        } else {
+          addToTeam(team2Members, char);
+        }
+      } else if (canPlace1) {
         addToTeam(team1Members, char);
-      } else if (!t2HasType && t1HasType) {
-        addToTeam(team2Members, char);
-      } else if (teamDpsSum(team2Members) <= teamDpsSum(team1Members)) {
-        addToTeam(team2Members, char);
       } else {
-        addToTeam(team1Members, char);
+        addToTeam(team2Members, char);
       }
-    } else if (can1) {
-      addToTeam(team1Members, char);
-    } else if (can2) {
-      addToTeam(team2Members, char);
+    } else {
+      // DPS (근딜/원딜)
+      if (can1 && can2) {
+        const t1HasType = team1Members.some(m => m.class_type === char.class_type);
+        const t2HasType = team2Members.some(m => m.class_type === char.class_type);
+        if (!t1HasType && t2HasType) {
+          addToTeam(team1Members, char);
+        } else if (!t2HasType && t1HasType) {
+          addToTeam(team2Members, char);
+        } else if (teamDpsSum(team2Members) <= teamDpsSum(team1Members)) {
+          addToTeam(team2Members, char);
+        } else {
+          addToTeam(team1Members, char);
+        }
+      } else if (can1) {
+        addToTeam(team1Members, char);
+      } else if (can2) {
+        addToTeam(team2Members, char);
+      }
     }
   }
 
-  // DPS 배치 후 근딜/원딜 균형 스왑
-  // team1에 원딜 없고 team2에 원딜 2+이면, team2 원딜 ↔ team1 근딜 스왑
-  // team1에 근딜 없고 team2에 근딜 2+이면, team2 근딜 ↔ team1 원딜 스왑 (역방향도)
+  // DPS/서포터 통합 배치 후 근딜/원딜 균형 스왑
+  // 각 팀에 근딜/원딜 최소 1명씩 보장
   for (const [teamA, teamB] of [[team1Members, team2Members], [team2Members, team1Members]] as [RaidMember[], RaidMember[]][]) {
     for (const missingType of ['근딜', '원딜'] as ClassType[]) {
       const otherType = missingType === '근딜' ? '원딜' : '근딜';
       const hasMissing = teamA.some(m => m.class_type === missingType);
       if (hasMissing) continue;
       const bCandidates = teamB.filter(m => m.class_type === missingType && !('isBot' in m && m.isBot));
-      const aCandidates = teamA.filter(m => m.class_type === otherType && !('isBot' in m && m.isBot));
-      if (bCandidates.length >= 2 && aCandidates.length >= 1) {
-        // 스왑: teamA의 otherType 하나 ↔ teamB의 missingType 하나
-        const aIdx = teamA.indexOf(aCandidates[0]);
-        const bIdx = teamB.indexOf(bCandidates[0]);
-        [teamA[aIdx], teamB[bIdx]] = [teamB[bIdx], teamA[aIdx]];
-      } else if (bCandidates.length >= 1 && aCandidates.length >= 1) {
-        // teamB에 1명이라도 있고 teamA에 해당 타입이 0명이면 스왑
-        const bHasOther = teamB.some(m => m.class_type === otherType);
-        if (bHasOther || aCandidates.length >= 2) {
-          const aIdx = teamA.indexOf(aCandidates[aCandidates.length - 1]);
+      const aCandidates = teamA.filter(m => (m.class_type === otherType || isSupport(m.class_type)) && !('isBot' in m && m.isBot));
+      if (bCandidates.length >= 1 && aCandidates.length >= 1) {
+        // 스왑 후 teamB가 missingType을 유지하는지 확인
+        const bKeepsMissing = bCandidates.length >= 2 || teamB.some(m => m !== bCandidates[0] && m.class_type === missingType);
+        // 스왑할 대상: teamA에서 가장 약한 비봇 멤버 (서포터 포함)
+        const sortedA = [...aCandidates].sort((a, b) => a.combat_power - b.combat_power);
+        const swapTarget = sortedA[0];
+        // 서포터를 보낼 때 teamB에서 중복이 생기지 않는지 확인
+        const canSendToB = !isSupport(swapTarget.class_type) || canPlaceSupportInTeam(teamB.filter(m => m !== bCandidates[0]), swapTarget as CharacterWithOwner);
+        if ((bKeepsMissing || bCandidates.length >= 1) && canSendToB) {
+          const aIdx = teamA.indexOf(swapTarget);
           const bIdx = teamB.indexOf(bCandidates[0]);
+          if (aIdx !== -1 && bIdx !== -1) {
+            [teamA[aIdx], teamB[bIdx]] = [teamB[bIdx], teamA[aIdx]];
+          }
+        }
+      }
+    }
+  }
+
+  // 근딜/원딜 최소 1명 최종 보장 (위 스왑으로 해결 안 된 경우)
+  for (const [teamA, teamB] of [[team1Members, team2Members], [team2Members, team1Members]] as [RaidMember[], RaidMember[]][]) {
+    for (const needType of ['근딜', '원딜'] as ClassType[]) {
+      if (teamA.some(m => m.class_type === needType)) continue;
+      const otherType = needType === '근딜' ? '원딜' : '근딜';
+      const bCandidate = teamB.filter(m => m.class_type === needType && !('isBot' in m && m.isBot));
+      const aCandidate = teamA.filter(m => m.class_type === otherType && !('isBot' in m && m.isBot));
+      if (bCandidate.length >= 1 && aCandidate.length >= 1) {
+        if (bCandidate.length >= 2 || teamB.some(m => m.class_type === otherType)) {
+          const aIdx = teamA.indexOf(aCandidate[aCandidate.length - 1]);
+          const bIdx = teamB.indexOf(bCandidate[0]);
           [teamA[aIdx], teamB[bIdx]] = [teamB[bIdx], teamA[aIdx]];
         }
       }
     }
   }
 
-  // DPS 부족 시 남은 서포트 캐릭터로 빈 자리 채우기
-  // 치유성+호법성 같은 팀 허용, 호법성+호법성 동일 팀은 비허용
-  const remainingSupports = eligible
-    .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '치유성' || c.class_type === '호법성'))
+  // 빈 자리가 남으면 아직 배치 안 된 서포터로 채우기 (위 통합 배치에서 제약으로 못 넣은 경우)
+  const stillRemaining = eligible
+    .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && isSupport(c.class_type))
     .sort((a, b) => b.combat_power - a.combat_power);
 
-  for (const char of remainingSupports) {
+  for (const char of stillRemaining) {
     if (team1Members.length >= 4 && team2Members.length >= 4) break;
     if (isOwnerInRaid(char.owner_id)) continue;
 
     const can1 = team1Members.length < 4;
     const can2 = team2Members.length < 4;
-    const t1Tanks = team1Members.filter(m => m.class_type === '호법성').length;
-    const t2Tanks = team2Members.filter(m => m.class_type === '호법성').length;
-
-    if (char.class_type === '호법성') {
-      // 호법성: 이미 호법성이 있는 팀에는 배치하지 않음 (호법성+호법성 방지)
-      const canPlace1 = can1 && t1Tanks === 0;
-      const canPlace2 = can2 && t2Tanks === 0;
-      if (canPlace1 && canPlace2) {
-        const t1Support = countSupportInTeam(team1Members);
-        const t2Support = countSupportInTeam(team2Members);
-        if (t1Support <= t2Support) {
-          addToTeam(team1Members, char);
-        } else {
-          addToTeam(team2Members, char);
-        }
-      } else if (canPlace1) {
+    const canPlace1 = can1 && canPlaceSupportInTeam(team1Members, char);
+    const canPlace2 = can2 && canPlaceSupportInTeam(team2Members, char);
+    if (canPlace1 && canPlace2) {
+      if (countSupportInTeam(team1Members) <= countSupportInTeam(team2Members)) {
         addToTeam(team1Members, char);
-      } else if (canPlace2) {
+      } else {
         addToTeam(team2Members, char);
       }
-    } else {
-      // 치유성: 이미 치유성이 있는 팀에는 배치하지 않음 (치유성+치유성 방지)
-      const t1Healers = team1Members.filter(m => m.class_type === '치유성').length;
-      const t2Healers = team2Members.filter(m => m.class_type === '치유성').length;
-      const canPlace1 = can1 && t1Healers === 0;
-      const canPlace2 = can2 && t2Healers === 0;
-      if (canPlace1 && canPlace2) {
-        const t1Support = countSupportInTeam(team1Members);
-        const t2Support = countSupportInTeam(team2Members);
-        if (t1Support <= t2Support) {
-          addToTeam(team1Members, char);
-        } else {
-          addToTeam(team2Members, char);
-        }
-      } else if (canPlace1) {
-        addToTeam(team1Members, char);
-      } else if (canPlace2) {
-        addToTeam(team2Members, char);
-      }
+    } else if (canPlace1) {
+      addToTeam(team1Members, char);
+    } else if (canPlace2) {
+      addToTeam(team2Members, char);
     }
   }
 
