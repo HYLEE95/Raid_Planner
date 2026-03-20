@@ -116,35 +116,37 @@ function buildSlotGroups(registrations: DBRegistration[], blockedOwnerSlots?: Bl
 }
 
 // 팀 평균 전투력 계산
-// 케이스1: 서포터 0~1명 → 170K 이상이면 전원 평균, 미만이면 서포터 제외 평균
-// 케이스2: 서포터 2명+ → 170K 이상 서포터는 딜러 취급
-// 케이스2-1: 딜러 취급 가능 인원(딜러+170K이상서포터)이 3명 미만 → 합/3으로 계산
+// 케이스1: 서포터 0~1명 → 서포터 제외, 딜러만 평균
+// 케이스2: 서포터 2명+ → 전투력 가장 낮은 서포터 1명만 제외, 나머지 서포터는 딜러로 간주
 export function calcTeamAvg(members: RaidMember[]): number {
   const supporters = members.filter(m => m.class_type === '치유성' || m.class_type === '호법성');
   const dealers = members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
 
   if (supporters.length <= 1) {
-    // 케이스1: 서포터 0~1명
-    if (supporters.length === 1 && supporters[0].combat_power >= 170) {
-      // 케이스1-1: 서포터 170K 이상 → 파티원 전원 평균
-      if (members.length === 0) return 0;
-      return members.reduce((sum, m) => sum + m.combat_power, 0) / members.length;
-    } else {
-      // 케이스1-2: 서포터 170K 미만 또는 서포터 없음 → 서포터 제외 평균
-      if (dealers.length === 0) return 0;
-      return dealers.reduce((sum, m) => sum + m.combat_power, 0) / dealers.length;
-    }
+    // 서포터 0~1명: 서포터 제외, 딜러만 평균
+    if (dealers.length === 0) return 0;
+    return dealers.reduce((sum, m) => sum + m.combat_power, 0) / dealers.length;
   } else {
-    // 케이스2: 서포터 2명 이상 → 170K 이상 서포터는 딜러 취급
-    const strongSupporters = supporters.filter(s => s.combat_power >= 170);
-    const effectiveDealers = [...dealers, ...strongSupporters];
+    // 서포터 2명+: 전투력 가장 낮은 서포터 1명만 제외, 나머지는 딜러로 간주
+    const sortedSupports = [...supporters].sort((a, b) => a.combat_power - b.combat_power);
+    // sortedSupports[0] = 제외할 서포터 (전투력 최저)
+    const dealerTreatedSupports = sortedSupports.slice(1); // 딜러로 간주되는 서포터
+    const effectiveDealers = [...dealers, ...dealerTreatedSupports];
     if (effectiveDealers.length === 0) return 0;
     const sum = effectiveDealers.reduce((s, m) => s + m.combat_power, 0);
-    // 케이스2-1: 딜러 취급 가능 인원이 3명 미만이면 합/3으로 계산
-    // (딜러 수가 모자라는 만큼 딜러들 전투력이 높아야 하기 때문)
     const divisor = Math.max(3, effectiveDealers.length);
     return sum / divisor;
   }
+}
+
+// 팀에서 딜러로 간주되는 서포터 중 기준 전투력 이하인 멤버가 있는지 확인
+export function hasUnderpoweredDealerSupport(members: RaidMember[]): boolean {
+  const supporters = members.filter(m => m.class_type === '치유성' || m.class_type === '호법성');
+  if (supporters.length < 2) return false;
+  const sortedSupports = [...supporters].sort((a, b) => a.combat_power - b.combat_power);
+  // 전투력 가장 낮은 서포터 1명 제외, 나머지가 딜러 간주
+  const dealerTreatedSupports = sortedSupports.slice(1);
+  return dealerTreatedSupports.some(s => s.combat_power < MIN_TEAM_AVG);
 }
 
 function createBot(classType: ClassType, combatPower: number, idx: number): BotCharacter {
@@ -394,7 +396,6 @@ function tryFormRaid(
 ): { raid: RaidGroup; usedChars: CharacterWithOwner[] } | null {
   const eligible = available.filter(
     c => !usedCharIds.has(c.id) && !usedOwnersInTimeSlot.has(c.owner_id)
-      && !(maxBotsPerRaid > 0 && c.is_underpowered)
   );
 
   if (eligible.length === 0) return null;
@@ -662,6 +663,10 @@ function tryFormRaid(
   // 팀 평균 전투력 최소 기준 미달 시 거부 (봇이 있는 공격대만 체크)
   if (botCount > 0) {
     if (team1.avgCombatPower < MIN_TEAM_AVG || team2.avgCombatPower < MIN_TEAM_AVG) {
+      return null;
+    }
+    // 딜러로 간주되는 서포터가 기준 전투력 이하이면 봇과 함께 배치 불가
+    if (hasUnderpoweredDealerSupport(team1Members) || hasUnderpoweredDealerSupport(team2Members)) {
       return null;
     }
   }

@@ -246,7 +246,7 @@ function MemberCard({
   return (
     <div>
       <div
-        className={`flex items-center gap-2 p-2 rounded border ${
+        className={`flex items-center gap-1.5 p-1.5 sm:p-2 rounded border ${
           isBot
             ? 'bg-gray-100 dark:bg-gray-700 border-dashed border-gray-400'
             : isUnderpowered
@@ -255,12 +255,12 @@ function MemberCard({
         }`}
       >
         <span
-          className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${CLASS_BADGE[member.class_type] || 'bg-gray-500 text-white'}`}
+          className={`px-1 sm:px-1.5 py-0.5 rounded text-[10px] sm:text-xs font-bold shrink-0 ${CLASS_BADGE[member.class_type] || 'bg-gray-500 text-white'}`}
         >
           {member.class_type}
         </span>
         <span
-          className={`text-sm font-medium truncate min-w-0 ${isBot ? 'text-gray-400 italic' : 'text-gray-800 dark:text-gray-200'}`}
+          className={`text-xs sm:text-sm font-medium truncate min-w-[2rem] ${isBot ? 'text-gray-400 italic' : 'text-gray-800 dark:text-gray-200'}`}
         >
           {member.nickname}
         </span>
@@ -345,7 +345,7 @@ function TeamCard({
 }) {
   const isBri = raidType === '브리레흐';
   return (
-    <div className="flex-1 min-w-0">
+    <div className="flex-1 min-w-[140px]">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{label}</h4>
         {!isBri && (
