@@ -459,14 +459,14 @@ function tryFormRaid(
     return null;
   }
 
-  // 1팀: 호법성 > 치유성 > 봇 정확히 1명
+  // 1팀: 호법성 또는 치유성 중 아무나 1명 (없으면 봇)
   const remainTanks = tanks.filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id));
   const remainHealers = healers.filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id));
+  // 호법성과 치유성 합쳐서 전투력 높은 순으로 선택
+  const remainSupports = [...remainTanks, ...remainHealers].sort((a, b) => b.combat_power - a.combat_power);
 
-  if (remainTanks.length > 0) {
-    addToTeam(team1Members, remainTanks[0]);
-  } else if (remainHealers.length > 0) {
-    addToTeam(team1Members, remainHealers[0]);
+  if (remainSupports.length > 0) {
+    addToTeam(team1Members, remainSupports[0]);
   } else if (botCount < maxBotsPerRaid) {
     team1Members.push(createBot('호법성', getBotCombatPower(eligible), ++botCount));
   } else {
