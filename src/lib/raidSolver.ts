@@ -148,17 +148,15 @@ function scoreComposition(comp: RaidComposition): number {
     const avgs = validRaids.map(r => r.avgCombatPower);
     const maxDiff = Math.max(...avgs) - Math.min(...avgs);
     score += maxDiff * 50;
-    // 표준편차 기반 추가 패널티
     const mean = avgs.reduce((a, b) => a + b, 0) / avgs.length;
     const variance = avgs.reduce((s, v) => s + (v - mean) ** 2, 0) / avgs.length;
     score += Math.sqrt(variance) * 30;
   }
 
-  // 모든 팀 간 전투력 균등 (공격대 내 팀 간 + 전체 팀 간)
+  // 모든 팀 간 전투력 균등
   const allTeamAvgs: number[] = [];
   for (const raid of validRaids) {
     allTeamAvgs.push(raid.team1.avgCombatPower, raid.team2.avgCombatPower);
-    // 공격대 내 팀 간 차이
     const teamDiff = Math.abs(raid.team1.avgCombatPower - raid.team2.avgCombatPower);
     score += teamDiff * 20;
   }
@@ -174,6 +172,14 @@ function scoreComposition(comp: RaidComposition): number {
     if (!raid.team2.members.some(m => m.class_type === '근딜')) score += 200;
   }
 
+  // 서포트 과다 팀 패널티 (1명 초과 시 약한 패널티)
+  for (const raid of comp.raids) {
+    const t1Support = countSupportInTeam(raid.team1.members);
+    const t2Support = countSupportInTeam(raid.team2.members);
+    if (t1Support > 1) score += (t1Support - 1) * 100;
+    if (t2Support > 1) score += (t2Support - 1) * 100;
+  }
+
   // 스펙 미달 인원과 봇이 같은 공격대에 있으면 큰 패널티
   for (const raid of comp.raids) {
     if (raid.botCount === 0) continue;
@@ -187,17 +193,13 @@ function scoreComposition(comp: RaidComposition): number {
     if (comp.raids[i].botCount > 0) score += 5000;
   }
 
-  // 제외 우선순위:
-  // - 공팟 스펙 미달(is_underpowered)은 반드시 배치 → 제외되면 큰 패널티
-  // - 공팟 가도 상관없음(can_clear_raid) + 낮은 전투력 순으로 제외 선호
+  // 제외 우선순위
   for (const ex of comp.excludedCharacters) {
     if ('is_underpowered' in ex && (ex as any).is_underpowered) {
-      score += 50000; // 스펙 미달이 빠지면 큰 패널티 (반드시 배치해야 함)
+      score += 50000;
     } else if (ex.can_clear_raid) {
-      // 공팟 상관없음 캐릭이 빠지는건 낮은 전투력일수록 괜찮음
-      score -= Math.max(0, 500 - ex.combat_power); // 전투력 낮을수록 감점(좋음)
+      score -= Math.max(0, 500 - ex.combat_power);
     } else {
-      // 아무 체크 안 한 일반 캐릭이 빠지면 약간의 패널티
       score += 1000;
     }
   }
@@ -216,8 +218,12 @@ function compositionKey(comp: RaidComposition): string {
   return raidKeys.join('||');
 }
 
-// 단일 공격대 생성 - 치유성/호법성 정확히 1명씩
-// maxBotsPerRaid: 이 공격대에서 사용 가능한 최대 봇 수
+// 소유자가 DPS 캐릭도 보유하는지 체크 (서포트 배치 우선순위용)
+function ownerHasDps(ownerId: string, eligible: CharacterWithOwner[]): boolean {
+  return eligible.some(c => c.owner_id === ownerId && (c.class_type === '근딜' || c.class_type === '원딜'));
+}
+
+// 단일 공격대 생성
 function tryFormRaid(
   available: CharacterWithOwner[],
   usedCharIds: Set<string>,
@@ -229,14 +235,28 @@ function tryFormRaid(
 ): { raid: RaidGroup; usedChars: CharacterWithOwner[] } | null {
   const eligible = available.filter(
     c => !usedCharIds.has(c.id) && !usedOwnersInTimeSlot.has(c.owner_id)
-      // 봇이 사용될 수 있는 공격대에서는 스펙미달 캐릭터 제외
       && !(maxBotsPerRaid > 0 && c.is_underpowered)
   );
 
   if (eligible.length === 0) return null;
 
-  const healers = eligible.filter(c => c.class_type === '치유성');
-  const tanks = eligible.filter(c => c.class_type === '호법성');
+  // 서포트 우선순위: DPS 캐릭이 없는 전용 서포트 소유자를 먼저 배치
+  // (멀티캐릭 소유자의 서포트를 아끼고, DPS 캐릭을 다른 시간대에서 활용할 수 있도록)
+  const healers = eligible
+    .filter(c => c.class_type === '치유성')
+    .sort((a, b) => {
+      const aHasDps = ownerHasDps(a.owner_id, eligible) ? 1 : 0;
+      const bHasDps = ownerHasDps(b.owner_id, eligible) ? 1 : 0;
+      return aHasDps - bHasDps; // DPS 없는 소유자 우선
+    });
+
+  const tanks = eligible
+    .filter(c => c.class_type === '호법성')
+    .sort((a, b) => {
+      const aHasDps = ownerHasDps(a.owner_id, eligible) ? 1 : 0;
+      const bHasDps = ownerHasDps(b.owner_id, eligible) ? 1 : 0;
+      return aHasDps - bHasDps;
+    });
 
   const team1Members: RaidMember[] = [];
   const team2Members: RaidMember[] = [];
@@ -250,15 +270,12 @@ function tryFormRaid(
     usedOwnerIds.add(char.owner_id);
   };
 
-  // 소유자가 이미 이 공격대(양 팀 통틀어)에 배치되었는지 체크
   const isOwnerInRaid = (ownerId: string) => usedOwnerIds.has(ownerId);
 
   // 2팀: 치유성 정확히 1명
   const availHealer = healers.find(h => !isOwnerInRaid(h.owner_id));
   if (availHealer) {
     addToTeam(team2Members, availHealer);
-  } else if (healers.length > 0 && !isOwnerInRaid(healers[0].owner_id)) {
-    addToTeam(team2Members, healers[0]);
   } else if (botCount < maxBotsPerRaid) {
     team2Members.push(createBot('치유성', getBotCombatPower(eligible), ++botCount));
   } else {
@@ -279,20 +296,16 @@ function tryFormRaid(
     return null;
   }
 
-  // 나머지 배치 (DPS만, 전투력 균형 기반)
-  // 같은 소유자의 캐릭터는 하나의 공격대에 1개만 배치
+  // 나머지 배치 (DPS 우선, 전투력 균형 기반)
   const remainingDps = eligible
     .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '근딜' || c.class_type === '원딜'))
-    .sort((a, b) => b.combat_power - a.combat_power); // 높은 전투력부터
+    .sort((a, b) => b.combat_power - a.combat_power);
 
-  // 팀 전투력 합계 헬퍼
   const teamDpsSum = (team: RaidMember[]) =>
     team.filter(m => m.class_type === '근딜' || m.class_type === '원딜').reduce((s, m) => s + m.combat_power, 0);
 
-  // 봇이 들어갈 팀 추적을 위해 먼저 DPS 배치 후 봇 배치
   for (const char of remainingDps) {
     if (team1Members.length >= 4 && team2Members.length >= 4) break;
-    // 이 캐릭터의 소유자가 이미 공격대에 있으면 스킵
     if (isOwnerInRaid(char.owner_id)) continue;
 
     const can1 = team1Members.length < 4;
@@ -311,7 +324,36 @@ function tryFormRaid(
     }
   }
 
-  // 봇 채우기 (봇 공격대에는 스펙미달이 eligible 단계에서 이미 제외됨)
+  // DPS 부족 시 남은 서포트 캐릭터로 빈 자리 채우기
+  // Team1: 치유성/호법성 모두 가능, Team2: 치유성만 가능 (호법성 불가)
+  const remainingSupports = eligible
+    .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '치유성' || c.class_type === '호법성'))
+    .sort((a, b) => b.combat_power - a.combat_power);
+
+  for (const char of remainingSupports) {
+    if (team1Members.length >= 4 && team2Members.length >= 4) break;
+    if (isOwnerInRaid(char.owner_id)) continue;
+
+    const can1 = team1Members.length < 4;
+    const can2 = team2Members.length < 4 && char.class_type !== '호법성'; // Team2에 호법성 불가
+
+    if (can1 && can2) {
+      // 서포트가 적은 팀에 배치
+      const t1Support = countSupportInTeam(team1Members);
+      const t2Support = countSupportInTeam(team2Members);
+      if (t1Support <= t2Support) {
+        addToTeam(team1Members, char);
+      } else {
+        addToTeam(team2Members, char);
+      }
+    } else if (can1) {
+      addToTeam(team1Members, char);
+    } else if (can2) {
+      addToTeam(team2Members, char);
+    }
+  }
+
+  // 봇 채우기
   const botPower = getBotCombatPower(usedChars);
 
   while (team1Members.length < 4 && botCount < maxBotsPerRaid) {
@@ -324,12 +366,11 @@ function tryFormRaid(
   }
 
   if (team1Members.length < 4 || team2Members.length < 4) return null;
-  // 1팀: 치유성 또는 호법성 정확히 1명
-  if (countSupportInTeam(team1Members) !== 1) return null;
-  // 2팀: 치유성 정확히 1명
+  // 서포트 최소 요건: Team1에 최소 1명 서포트, Team2에 최소 1명 치유성 + 호법성 0명
+  if (countSupportInTeam(team1Members) < 1) return null;
   const team2Healers = team2Members.filter(m => m.class_type === '치유성').length;
   const team2Tanks = team2Members.filter(m => m.class_type === '호법성').length;
-  if (team2Healers !== 1 || team2Tanks !== 0) return null;
+  if (team2Healers < 1 || team2Tanks !== 0) return null;
 
   const team1: Team = { members: team1Members, avgCombatPower: calcTeamAvg(team1Members) };
   const team2: Team = { members: team2Members, avgCombatPower: calcTeamAvg(team2Members) };
@@ -357,7 +398,6 @@ function getExcluded(allChars: CharacterWithOwner[], usedIds: Set<string>) {
     }));
 }
 
-// 모든 고유 캐릭터 목록 (중복 제거)
 function getAllUniqueChars(slotGroups: SlotGroup[]): CharacterWithOwner[] {
   const seen = new Set<string>();
   const result: CharacterWithOwner[] = [];
@@ -372,7 +412,6 @@ function getAllUniqueChars(slotGroups: SlotGroup[]): CharacterWithOwner[] {
   return result;
 }
 
-// 기존 레이드들에서 특정 시간대와 겹치는 소유자 ID 수집
 function getOwnersInOverlappingRaids(raids: RaidGroup[], slot: TimeSlot): Set<string> {
   const owners = new Set<string>();
   for (const raid of raids) {
@@ -401,7 +440,6 @@ function crossSlotComposition(
   let globalBotCount = 0;
   let raidId = 1;
 
-  // greedy: 가용인원 많은 순서로 정렬 (매번 재계산)
   const getSlotOrder = () => {
     if (strategy === 'greedy') {
       return [...slotGroups].sort((a, b) => {
@@ -413,60 +451,35 @@ function crossSlotComposition(
     return [...slotGroups];
   };
 
-  // 1단계: 봇 없이 가능한 공격대 먼저
+  // 1단계: 봇 없이
   const sortedSlots = getSlotOrder();
   for (const sg of sortedSlots) {
-    const available = sg.characters.filter(c => !usedCharIds.has(c.id));
-    if (available.length < 2) continue;
-
     while (true) {
-      // 겹치는 시간대의 소유자도 체크
       const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
-      const slotAvail = sg.characters.filter(
-        c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id)
-      );
+      const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
       if (slotAvail.length < 2) break;
-
-      const result = tryFormRaid(
-        sg.characters, usedCharIds, sg.slot, raidId,
-        globalBotCount, 0, usedOwnersInSlot
-      );
+      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, globalBotCount, 0, usedOwnersInSlot);
       if (!result) break;
-
       raids.push(result.raid);
-      for (const c of result.usedChars) {
-        usedCharIds.add(c.id);
-      }
+      for (const c of result.usedChars) usedCharIds.add(c.id);
       raidId++;
     }
   }
 
-  // 2단계: 남은 인원으로 봇 포함 공격대 (전체 봇 MAX_TOTAL_BOTS 이내)
+  // 2단계: 봇 포함
   const sortedSlots2 = getSlotOrder();
   for (const sg of sortedSlots2) {
-    const available = sg.characters.filter(c => !usedCharIds.has(c.id));
-    if (available.length < 2) continue;
     if (globalBotCount >= MAX_TOTAL_BOTS) break;
-
     while (globalBotCount < MAX_TOTAL_BOTS) {
       const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
-      const slotAvail = sg.characters.filter(
-        c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id)
-      );
+      const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
       if (slotAvail.length < 2) break;
-
       const remainingBots = MAX_TOTAL_BOTS - globalBotCount;
-      const result = tryFormRaid(
-        sg.characters, usedCharIds, sg.slot, raidId,
-        globalBotCount, Math.min(maxBotsPerRaid, remainingBots), usedOwnersInSlot
-      );
+      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, globalBotCount, Math.min(maxBotsPerRaid, remainingBots), usedOwnersInSlot);
       if (!result) break;
-
       raids.push(result.raid);
       globalBotCount += result.raid.botCount;
-      for (const c of result.usedChars) {
-        usedCharIds.add(c.id);
-      }
+      for (const c of result.usedChars) usedCharIds.add(c.id);
       raidId++;
     }
   }
@@ -483,10 +496,7 @@ function crossSlotComposition(
 }
 
 // 균등 분배 크로스-시간대
-function crossSlotBalanced(
-  slotGroups: SlotGroup[],
-  maxBots: number
-): RaidComposition | null {
+function crossSlotBalanced(slotGroups: SlotGroup[], maxBots: number): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
   if (allChars.length === 0) return null;
 
@@ -495,21 +505,16 @@ function crossSlotBalanced(
   let globalBotCount = 0;
   let raidId = 1;
 
-  // 시간순으로 처리
   for (const sg of slotGroups) {
     const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
     const available = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
     if (available.length < 2) continue;
 
-    // 이 시간대에서 가능한 공격대 수
     const numRaidsInSlot = Math.max(1, Math.floor(available.length / 8));
 
     if (numRaidsInSlot > 1) {
-      // 균등 분배: 지그재그
       const sorted = [...available].sort((a, b) => b.combat_power - a.combat_power);
       const groups: CharacterWithOwner[][] = Array.from({ length: numRaidsInSlot }, () => []);
-
-      // 서포트 먼저 분배
       const healers = sorted.filter(c => c.class_type === '치유성');
       const tanks = sorted.filter(c => c.class_type === '호법성');
       const dps = sorted.filter(c => c.class_type === '근딜' || c.class_type === '원딜');
@@ -523,7 +528,6 @@ function crossSlotBalanced(
         else if (h) { groups[i].push(h); assignedIds.add(h.id); }
       }
 
-      // DPS 지그재그
       let dir = 1, gi = 0;
       for (const c of dps) {
         if (assignedIds.has(c.id)) continue;
@@ -537,7 +541,6 @@ function crossSlotBalanced(
 
       for (const group of groups) {
         if (group.length < 2) continue;
-        // 봇 없이 먼저 시도
         const result = tryFormRaid(group, usedCharIds, sg.slot, raidId, 0, 0, usedOwnersInSlot);
         if (result) {
           raids.push(result.raid);
@@ -555,12 +558,9 @@ function crossSlotBalanced(
     }
   }
 
-  // 2단계: 남은 인원으로 봇 포함
+  // 2단계: 봇 포함
   for (const sg of slotGroups) {
     if (globalBotCount >= MAX_TOTAL_BOTS) break;
-    const available = sg.characters.filter(c => !usedCharIds.has(c.id));
-    if (available.length < 2) continue;
-
     while (globalBotCount < MAX_TOTAL_BOTS) {
       const usedOwnersInSlot2 = getOwnersInOverlappingRaids(raids, sg.slot);
       const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot2.has(c.owner_id));
@@ -570,7 +570,7 @@ function crossSlotBalanced(
       if (!result) break;
       raids.push(result.raid);
       globalBotCount += result.raid.botCount;
-      for (const c of result.usedChars) { usedCharIds.add(c.id); }
+      for (const c of result.usedChars) usedCharIds.add(c.id);
       raidId++;
     }
   }
@@ -598,7 +598,7 @@ function shuffle<T>(arr: T[], seed: number): T[] {
   return result;
 }
 
-// 셔플된 캐릭터 순서로 크로스-시간대 구성 (2단계: 봇 없이 → 봇 포함)
+// 셔플된 캐릭터 순서로 크로스-시간대 구성
 function shuffledComposition(
   slotGroups: SlotGroup[],
   maxBotsPerRaid: number,
@@ -632,17 +632,14 @@ function shuffledComposition(
       const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, 0, 0, usedOwnersInSlot);
       if (!result) break;
       raids.push(result.raid);
-      for (const c of result.usedChars) { usedCharIds.add(c.id); }
+      for (const c of result.usedChars) usedCharIds.add(c.id);
       raidId++;
     }
   }
 
-  // 2단계: 봇 포함 (전체 MAX_TOTAL_BOTS 이내)
+  // 2단계: 봇 포함
   for (const sg of orderedSlots) {
     if (globalBotCount >= MAX_TOTAL_BOTS) break;
-    const available = sg.characters.filter(c => !usedCharIds.has(c.id));
-    if (available.length < 2) continue;
-
     while (globalBotCount < MAX_TOTAL_BOTS) {
       const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
       const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
@@ -652,7 +649,7 @@ function shuffledComposition(
       if (!result) break;
       raids.push(result.raid);
       globalBotCount += result.raid.botCount;
-      for (const c of result.usedChars) { usedCharIds.add(c.id); }
+      for (const c of result.usedChars) usedCharIds.add(c.id);
       raidId++;
     }
   }
@@ -668,7 +665,99 @@ function shuffledComposition(
   return comp;
 }
 
-// 조합에서 스펙미달+봇이 같은 공격대에 있는지 체크 (팀이 아닌 공격대 단위)
+// === 최대 공격대 수 전략 ===
+// 서포트를 DPS 역할에서 분리하여, 다른 시간대에서 서포트가 부족하지 않게 함
+function maxRaidsComposition(
+  slotGroups: SlotGroup[],
+  maxBotsPerRaid: number,
+  seed: number
+): RaidComposition | null {
+  const allChars = getAllUniqueChars(slotGroups);
+  if (allChars.length === 0) return null;
+
+  // 소유자별 캐릭터 매핑
+  const ownerChars = new Map<string, CharacterWithOwner[]>();
+  for (const c of allChars) {
+    if (!ownerChars.has(c.owner_id)) ownerChars.set(c.owner_id, []);
+    ownerChars.get(c.owner_id)!.push(c);
+  }
+
+  // 소유자를 분류: 서포트 전용 vs 서포트+DPS vs DPS 전용
+  const supportOnlyOwners: string[] = []; // 서포트만 있는 소유자
+  const multiRoleOwners: string[] = []; // 서포트+DPS 둘 다 있는 소유자
+
+  for (const [ownerId, chars] of ownerChars) {
+    const hasSupport = chars.some(c => c.class_type === '치유성' || c.class_type === '호법성');
+    const hasDps = chars.some(c => c.class_type === '근딜' || c.class_type === '원딜');
+    if (hasSupport && !hasDps) supportOnlyOwners.push(ownerId);
+    else if (hasSupport && hasDps) multiRoleOwners.push(ownerId);
+  }
+
+  // 시간대별 가용 소유자 수를 기반으로 "빈도가 낮은 시간대" 우선
+  // → 인원이 적은 시간대에서 서포트 전용 소유자를 먼저 사용
+  const slotsByScarcity = [...slotGroups].sort((a, b) => {
+    const aOwners = new Set(a.characters.map(c => c.owner_id)).size;
+    const bOwners = new Set(b.characters.map(c => c.owner_id)).size;
+    return aOwners - bOwners; // 적은 인원 시간대 우선
+  });
+
+  // seed로 전략 변형
+  const orderedSlots = seed % 4 === 0
+    ? slotsByScarcity
+    : seed % 4 === 1
+      ? [...slotsByScarcity].reverse()
+      : seed % 4 === 2
+        ? shuffle(slotGroups, seed)
+        : slotGroups;
+
+  const raids: RaidGroup[] = [];
+  const usedCharIds = new Set<string>();
+  let globalBotCount = 0;
+  let raidId = 1;
+
+  // 1단계: 봇 없이
+  for (const sg of orderedSlots) {
+    while (true) {
+      const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
+      const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
+      if (slotAvail.length < 2) break;
+      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, 0, 0, usedOwnersInSlot);
+      if (!result) break;
+      raids.push(result.raid);
+      for (const c of result.usedChars) usedCharIds.add(c.id);
+      raidId++;
+    }
+  }
+
+  // 2단계: 봇 포함
+  for (const sg of orderedSlots) {
+    if (globalBotCount >= MAX_TOTAL_BOTS) break;
+    while (globalBotCount < MAX_TOTAL_BOTS) {
+      const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
+      const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
+      if (slotAvail.length < 2) break;
+      const rem = MAX_TOTAL_BOTS - globalBotCount;
+      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, 0, Math.min(maxBotsPerRaid, rem), usedOwnersInSlot);
+      if (!result) break;
+      raids.push(result.raid);
+      globalBotCount += result.raid.botCount;
+      for (const c of result.usedChars) usedCharIds.add(c.id);
+      raidId++;
+    }
+  }
+
+  if (raids.length === 0) return null;
+
+  const comp: RaidComposition = {
+    raids: sortRaidsBotsLast(raids),
+    excludedCharacters: getExcluded(allChars, usedCharIds),
+    score: 0,
+  };
+  comp.score = scoreComposition(comp);
+  return comp;
+}
+
+// 조합에서 스펙미달+봇이 같은 공격대에 있는지 체크
 function hasUnderpoweredWithBot(comp: RaidComposition): boolean {
   for (const raid of comp.raids) {
     if (raid.botCount === 0) continue;
@@ -679,7 +768,6 @@ function hasUnderpoweredWithBot(comp: RaidComposition): boolean {
   return false;
 }
 
-// 슬롯 그룹에서 특정 캐릭터 ID 제외
 function filterSlotGroups(slotGroups: SlotGroup[], excludeIds: Set<string>): SlotGroup[] {
   return slotGroups.map(sg => ({
     slot: sg.slot,
@@ -687,7 +775,7 @@ function filterSlotGroups(slotGroups: SlotGroup[], excludeIds: Set<string>): Slo
   })).filter(sg => sg.characters.length > 0);
 }
 
-// 기본 전략들로 조합 생성
+// 모든 전략으로 조합 생성
 function generateCompositions(slotGroups: SlotGroup[], maxBots: number): RaidComposition[] {
   const allResults: RaidComposition[] = [];
 
@@ -700,7 +788,14 @@ function generateCompositions(slotGroups: SlotGroup[], maxBots: number): RaidCom
   const timeOrdered = crossSlotComposition(slotGroups, maxBots, 'balanced');
   if (timeOrdered) allResults.push(timeOrdered);
 
-  for (let seed = 1; seed <= 20; seed++) {
+  // 최대 공격대 수 전략 (다양한 seed)
+  for (let seed = 0; seed < 30; seed++) {
+    const comp = maxRaidsComposition(slotGroups, maxBots, seed * 3571);
+    if (comp) allResults.push(comp);
+  }
+
+  // 셔플 기반 다양한 조합 생성 (50회)
+  for (let seed = 1; seed <= 50; seed++) {
     const comp = shuffledComposition(slotGroups, maxBots, seed * 7919);
     if (comp) allResults.push(comp);
   }
@@ -711,21 +806,20 @@ function generateCompositions(slotGroups: SlotGroup[], maxBots: number): RaidCom
 // 메인 솔버
 export function solveRaidComposition(registrations: DBRegistration[], raidType: RaidType = '루드라'): RaidComposition[] {
   if (registrations.length === 0) return [];
-  void RAID_CONFIGS[raidType]; // 추후 레이드별 설정 사용 예정
+  void RAID_CONFIGS[raidType];
 
   const slotGroups = buildSlotGroups(registrations);
   const maxBots = 4;
   let allResults = generateCompositions(slotGroups, maxBots);
 
-  // 스펙미달+봇 동일 팀인 조합 필터링
+  // 스펙미달+봇 동일 공격대 조합 필터링
   const cleanResults = allResults.filter(c => !hasUnderpoweredWithBot(c));
 
-  // 유효한 조합이 없으면 스펙미달 인원을 낮은 전투력순으로 하나씩 제외하며 재시도
   if (cleanResults.length === 0 && allResults.length > 0) {
     const allChars = getAllUniqueChars(slotGroups);
     const underpoweredChars = allChars
       .filter(c => c.is_underpowered)
-      .sort((a, b) => a.combat_power - b.combat_power); // 낮은 전투력부터
+      .sort((a, b) => a.combat_power - b.combat_power);
 
     const excludeIds = new Set<string>();
     for (const underChar of underpoweredChars) {
@@ -737,7 +831,6 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
       const retryClean = retryResults.filter(c => !hasUnderpoweredWithBot(c));
 
       if (retryClean.length > 0) {
-        // 제외된 스펙미달 캐릭터를 excludedCharacters에 추가
         const excludedUnders = underpoweredChars
           .filter(c => excludeIds.has(c.id))
           .map(c => ({
@@ -756,7 +849,6 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
       }
     }
 
-    // 그래도 안되면 원래 결과 사용 (스펙미달+봇 공존이라도)
     if (allResults.every(c => hasUnderpoweredWithBot(c))) {
       // 원래 결과 유지
     }
@@ -775,7 +867,7 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
     }
   }
 
-  // 점수순 정렬 (우선순위: 봇 최소 > 전투력 균등 > 인원 최대)
+  // 점수순 정렬
   unique.sort((a, b) => a.score - b.score);
   return unique.slice(0, 10);
 }
