@@ -122,9 +122,10 @@ interface RaidResultProps {
   compositions: RaidComposition[];
   selectedIndex: number;
   onSelectIndex: (idx: number) => void;
+  onConfirm?: (comp: RaidComposition) => void;
 }
 
-export default function RaidResult({ compositions }: RaidResultProps) {
+export default function RaidResult({ compositions, onConfirm }: RaidResultProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   if (compositions.length === 0) {
@@ -164,6 +165,20 @@ export default function RaidResult({ compositions }: RaidResultProps) {
                 <CompositionSummary comp={comp} />
               </div>
               <div className="flex items-center gap-2">
+                {onConfirm && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onConfirm(comp);
+                      }}
+                      className="px-3 py-1 rounded text-sm font-semibold text-green-700 bg-green-50 border border-green-300 hover:bg-green-100 transition-colors"
+                    >
+                      공대 확정
+                    </button>
+                    <span className="text-gray-300">|</span>
+                  </>
+                )}
                 <span className="text-sm text-indigo-600 font-medium">
                   {isExpanded ? '접기' : '더보기'}
                 </span>

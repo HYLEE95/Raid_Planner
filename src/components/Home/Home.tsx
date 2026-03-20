@@ -6,6 +6,9 @@ import {
   getRegistrationsByWeek,
   subscribeToRegistrations,
   deleteRegistration,
+  saveConfirmedRaid,
+  getConfirmedRaid,
+  generateId,
 } from '../../lib/storage';
 import { solveRaidComposition } from '../../lib/raidSolver';
 import RaidResult from '../RaidResult/RaidResult';
@@ -60,6 +63,27 @@ export default function Home() {
       }
       setLoading(false);
     }, 50);
+  };
+
+  const handleConfirm = async (comp: RaidComposition) => {
+    if (!selectedRaid) return;
+    try {
+      const existing = await getConfirmedRaid(selectedWeek, selectedRaid);
+      if (existing) {
+        alert('이미 공격대가 확정되었습니다.');
+        return;
+      }
+      await saveConfirmedRaid({
+        id: generateId(),
+        raid_type: selectedRaid,
+        week_start: selectedWeek,
+        composition: comp,
+        confirmed_at: new Date().toISOString(),
+      });
+      alert('공격대가 확정되었습니다!');
+    } catch (err) {
+      alert('확정 실패: ' + (err as Error).message);
+    }
   };
 
   const handleEdit = (reg: DBRegistration) => {
@@ -237,6 +261,7 @@ export default function Home() {
               compositions={compositions}
               selectedIndex={0}
               onSelectIndex={() => {}}
+              onConfirm={handleConfirm}
             />
           )}
         </>

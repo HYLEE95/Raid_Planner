@@ -1,7 +1,8 @@
 import { getSupabase, isSupabaseConfigured } from './supabase';
-import type { DBRegistration, TimeSlot } from './types';
+import type { DBRegistration, TimeSlot, ConfirmedRaid } from './types';
 
 const STORAGE_KEY = 'raid-planner-registrations';
+const CONFIRMED_KEY = 'raid-planner-confirmed';
 
 function getLocalRegistrations(): DBRegistration[] {
   const data = localStorage.getItem(STORAGE_KEY);
@@ -89,6 +90,55 @@ export function subscribeToRegistrations(
   return () => {
     supabase.removeChannel(channel);
   };
+}
+
+// === 확정 공대 관련 ===
+function getLocalConfirmed(): ConfirmedRaid[] {
+  const data = localStorage.getItem(CONFIRMED_KEY);
+  return data ? JSON.parse(data) : [];
+}
+
+function saveLocalConfirmed(confirmed: ConfirmedRaid[]) {
+  localStorage.setItem(CONFIRMED_KEY, JSON.stringify(confirmed));
+}
+
+export async function saveConfirmedRaid(confirmed: ConfirmedRaid): Promise<void> {
+  if (isSupabaseConfigured()) {
+    const { error } = await getSupabase().from('confirmed_raids').upsert(confirmed);
+    if (error) throw error;
+  } else {
+    const all = getLocalConfirmed();
+    const idx = all.findIndex(c => c.id === confirmed.id);
+    if (idx >= 0) all[idx] = confirmed;
+    else all.push(confirmed);
+    saveLocalConfirmed(all);
+  }
+}
+
+export async function getConfirmedRaid(weekStart: string, raidType: string): Promise<ConfirmedRaid | null> {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await getSupabase()
+      .from('confirmed_raids')
+      .select('*')
+      .eq('week_start', weekStart)
+      .eq('raid_type', raidType)
+      .limit(1);
+    if (error) throw error;
+    return data && data.length > 0 ? data[0] : null;
+  } else {
+    const all = getLocalConfirmed();
+    return all.find(c => c.week_start === weekStart && c.raid_type === raidType) || null;
+  }
+}
+
+export async function deleteConfirmedRaid(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    const { error } = await getSupabase().from('confirmed_raids').delete().eq('id', id);
+    if (error) throw error;
+  } else {
+    const all = getLocalConfirmed().filter(c => c.id !== id);
+    saveLocalConfirmed(all);
+  }
 }
 
 export function getWednesday(date: Date): Date {

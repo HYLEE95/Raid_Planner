@@ -174,14 +174,12 @@ function scoreComposition(comp: RaidComposition): number {
     if (!raid.team2.members.some(m => m.class_type === '근딜')) score += 200;
   }
 
-  // 스펙 미달 인원과 봇이 같은 팀에 있으면 큰 패널티
+  // 스펙 미달 인원과 봇이 같은 공격대에 있으면 큰 패널티
   for (const raid of comp.raids) {
-    const t1HasBot = raid.team1.members.some(m => 'isBot' in m && m.isBot);
-    const t1HasUnder = raid.team1.members.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-    const t2HasBot = raid.team2.members.some(m => 'isBot' in m && m.isBot);
-    const t2HasUnder = raid.team2.members.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-    if (t1HasBot && t1HasUnder) score += 30000;
-    if (t2HasBot && t2HasUnder) score += 30000;
+    if (raid.botCount === 0) continue;
+    const allMembers = [...raid.team1.members, ...raid.team2.members];
+    const hasUnder = allMembers.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
+    if (hasUnder) score += 30000;
   }
 
   // 봇이 마지막 공격대가 아닌 곳에 있으면 큰 패널티
@@ -231,6 +229,8 @@ function tryFormRaid(
 ): { raid: RaidGroup; usedChars: CharacterWithOwner[] } | null {
   const eligible = available.filter(
     c => !usedCharIds.has(c.id) && !usedOwnersInTimeSlot.has(c.owner_id)
+      // 봇이 사용될 수 있는 공격대에서는 스펙미달 캐릭터 제외
+      && !(maxBotsPerRaid > 0 && c.is_underpowered)
   );
 
   if (eligible.length === 0) return null;
@@ -311,42 +311,8 @@ function tryFormRaid(
     }
   }
 
-  // 봇 채우기 - 스펙 미달 인원과 같은 팀에 봇이 들어가지 않도록
+  // 봇 채우기 (봇 공격대에는 스펙미달이 eligible 단계에서 이미 제외됨)
   const botPower = getBotCombatPower(usedChars);
-  const team1HasUnderpowered = team1Members.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-  const team2HasUnderpowered = team2Members.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-
-  // 봇이 필요한 팀에 스펙미달이 있으면, 스펙미달을 다른 팀으로 이동 시도
-  if (team1Members.length < 4 && team1HasUnderpowered && !team2HasUnderpowered && team2Members.length < 4) {
-    // team1에 봇이 필요하고 스펙미달이 있으면, 스펙미달을 team2로 이동
-    const underpoweredIdx = team1Members.findIndex(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-    if (underpoweredIdx !== -1 && team2Members.length < 4) {
-      const moved = team1Members.splice(underpoweredIdx, 1)[0];
-      team2Members.push(moved);
-    }
-  } else if (team2Members.length < 4 && team2HasUnderpowered && !team1HasUnderpowered && team1Members.length < 4) {
-    // team2에 봇이 필요하고 스펙미달이 있으면, 스펙미달을 team1으로 이동
-    const underpoweredIdx = team2Members.findIndex(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-    if (underpoweredIdx !== -1 && team1Members.length < 4) {
-      const moved = team2Members.splice(underpoweredIdx, 1)[0];
-      team1Members.push(moved);
-    }
-  }
-
-  // 봇 배치 (스펙미달이 없는 팀 우선)
-  const t1NeedBots = 4 - team1Members.length;
-  const t2NeedBots = 4 - team2Members.length;
-  const t1HasUnder = team1Members.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-  const t2HasUnder = team2Members.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-
-  // 스펙미달이 있는 팀에 봇을 넣어야 하는 상황이면 공격대 구성 실패
-  if (t1NeedBots > 0 && t1HasUnder && botCount < maxBotsPerRaid) {
-    // team1에 봇 필요 + 스펙미달 있음 → 구성 불가 (봇과 스펙미달 공존 방지)
-    return null;
-  }
-  if (t2NeedBots > 0 && t2HasUnder && botCount < maxBotsPerRaid) {
-    return null;
-  }
 
   while (team1Members.length < 4 && botCount < maxBotsPerRaid) {
     const needMelee = !team1Members.some(m => m.class_type === '근딜');
@@ -702,14 +668,13 @@ function shuffledComposition(
   return comp;
 }
 
-// 조합에서 스펙미달+봇이 같은 팀에 있는지 체크
+// 조합에서 스펙미달+봇이 같은 공격대에 있는지 체크 (팀이 아닌 공격대 단위)
 function hasUnderpoweredWithBot(comp: RaidComposition): boolean {
   for (const raid of comp.raids) {
-    for (const team of [raid.team1, raid.team2]) {
-      const hasBot = team.members.some(m => 'isBot' in m && m.isBot);
-      const hasUnder = team.members.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
-      if (hasBot && hasUnder) return true;
-    }
+    if (raid.botCount === 0) continue;
+    const allMembers = [...raid.team1.members, ...raid.team2.members];
+    const hasUnder = allMembers.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
+    if (hasUnder) return true;
   }
   return false;
 }

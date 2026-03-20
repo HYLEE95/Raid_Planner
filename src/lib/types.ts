@@ -100,6 +100,15 @@ export interface RaidComposition {
   score: number;
 }
 
+// 확정된 공격대
+export interface ConfirmedRaid {
+  id: string;
+  raid_type: RaidType;
+  week_start: string;
+  composition: RaidComposition;
+  confirmed_at: string;
+}
+
 // DB에 저장되는 형태
 export interface DBRegistration {
   id: string;
