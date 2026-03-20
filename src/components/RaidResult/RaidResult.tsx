@@ -338,6 +338,7 @@ function RaidGroupCard({
   onDateChange,
   onTimeChange,
   onSwapMember,
+  onDelete,
 }: {
   raid: RaidGroup;
   raidType?: RaidType;
@@ -347,6 +348,7 @@ function RaidGroupCard({
   onDateChange?: (date: string) => void;
   onTimeChange?: (startTime: string) => void;
   onSwapMember?: (team: 'team1' | 'team2', memberIdx: number, value: string) => void;
+  onDelete?: () => void;
 }) {
   const [showAllSlots, setShowAllSlots] = useState(false);
   const isBri = raidType === '브리레흐';
@@ -373,9 +375,20 @@ function RaidGroupCard({
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-          {isBri ? `파티 ${raid.id}` : `공격대 ${raid.id}`}
-        </h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+            {isBri ? `파티 ${raid.id}` : `공격대 ${raid.id}`}
+          </h3>
+          {onDelete && raid.isManual && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              className="px-2 py-0.5 text-xs rounded border border-red-300 dark:border-red-600 text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+              title="공격대 삭제"
+            >
+              삭제
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           {/* 날짜 선택 */}
           {onDateChange ? (
@@ -748,6 +761,7 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
         avgCombatPower: 0,
         botCount: 4,
         timeSlot: defaultSlot,
+        isManual: true,
       };
     } else {
       const team1Bots: RaidMember[] = [
@@ -769,10 +783,26 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
         avgCombatPower: 0,
         botCount: 8,
         timeSlot: defaultSlot,
+        isManual: true,
       };
     }
 
     updateComp(compIdx, { ...comp, raids: [...comp.raids, newRaid] });
+  };
+
+  // 수동 추가 공격대 삭제
+  const handleDeleteRaid = (compIdx: number, raidId: number) => {
+    const comp = compositions[compIdx];
+    const raidToDelete = comp.raids.find(r => r.id === raidId);
+    if (!raidToDelete || !raidToDelete.isManual) return;
+
+    // 삭제되는 공격대의 비봇 멤버를 제외 인원으로 이동
+    const allMembers = [...raidToDelete.team1.members, ...(raidToDelete.team2?.members || [])];
+    const nonBotMembers = allMembers.filter(m => !('isBot' in m && m.isBot));
+    const newExcluded = [...comp.excludedCharacters, ...nonBotMembers.map(memberToExcluded)];
+
+    const updatedRaids = comp.raids.filter(r => r.id !== raidId);
+    updateComp(compIdx, { ...comp, raids: updatedRaids, excludedCharacters: newExcluded });
   };
 
   return (
@@ -780,8 +810,11 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
       {compositions.map((comp, idx) => {
         const isExpanded = expandedIndex === idx;
 
-        // 날짜/시간 빠른순 정렬
+        // 자동 배치 → 수동 추가 순, 각각 날짜/시간 빠른순 정렬
         const sortedRaids = [...comp.raids].sort((a, b) => {
+          const aManual = a.isManual ? 1 : 0;
+          const bManual = b.isManual ? 1 : 0;
+          if (aManual !== bManual) return aManual - bManual;
           const d = a.timeSlot.date.localeCompare(b.timeSlot.date);
           return d !== 0 ? d : a.timeSlot.start_time.localeCompare(b.timeSlot.start_time);
         });
@@ -843,6 +876,7 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
                       onDateChange={onUpdate ? (date) => handleDateChange(idx, raid.id, date) : undefined}
                       onTimeChange={onUpdate ? (time) => handleTimeChange(idx, raid.id, time) : undefined}
                       onSwapMember={onUpdate ? (team, mIdx, val) => handleSwap(idx, raid.id, team, mIdx, val) : undefined}
+                      onDelete={onUpdate && raid.isManual ? () => handleDeleteRaid(idx, raid.id) : undefined}
                     />
                   ))}
                 </div>

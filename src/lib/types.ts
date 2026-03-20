@@ -107,6 +107,7 @@ export interface RaidGroup {
   avgCombatPower: number;
   botCount: number;
   timeSlot: TimeSlot;
+  isManual?: boolean;  // 수동 추가 공격대 여부
 }
 
 export interface RaidComposition {
