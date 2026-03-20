@@ -410,7 +410,7 @@ export default function Registration() {
       )}
 
       {editId && !saved && (
-        <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 rounded-lg border border-amber-300 dark:border-amber-700 text-sm">
+        <div className="mb-4 p-3 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg border-2 border-indigo-300 dark:border-indigo-700 text-sm font-medium">
           이미 신청된 소유주입니다. 수정 후 저장하면 기존 신청이 업데이트됩니다.
         </div>
       )}
