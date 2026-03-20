@@ -904,6 +904,106 @@ function maxRaidsComposition(
   return comp;
 }
 
+// === 소유주 포함 우선 전략 ===
+// 가용 시간대가 적은 소유주의 슬롯에서 먼저 공격대를 구성 (봇 허용)
+function inclusiveComposition(
+  slotGroups: SlotGroup[],
+  maxBotsPerRaid: number,
+  raidType: RaidType = '루드라'
+): RaidComposition | null {
+  const allChars = getAllUniqueChars(slotGroups);
+  if (allChars.length === 0) return null;
+
+  // 소유주별 가용 슬롯 수 계산
+  const ownerSlotCount = new Map<string, number>();
+  for (const sg of slotGroups) {
+    const owners = new Set(sg.characters.map(c => c.owner_id));
+    for (const oid of owners) {
+      ownerSlotCount.set(oid, (ownerSlotCount.get(oid) || 0) + 1);
+    }
+  }
+
+  // 가용 슬롯이 가장 적은 소유주가 포함된 슬롯을 우선 처리
+  const slotsWithScarcity = slotGroups.map(sg => {
+    const minOwnerSlots = Math.min(
+      ...sg.characters.map(c => ownerSlotCount.get(c.owner_id) || 999)
+    );
+    return { sg, minOwnerSlots };
+  });
+  slotsWithScarcity.sort((a, b) => a.minOwnerSlots - b.minOwnerSlots);
+
+  const raids: RaidGroup[] = [];
+  const usedCharIds = new Set<string>();
+  let globalBotCount = 0;
+  let raidId = 1;
+
+  // 1단계: 희소 소유주가 있는 슬롯에서 봇 허용하여 먼저 공격대 구성
+  for (const { sg } of slotsWithScarcity) {
+    const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
+    const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
+
+    // 이 슬롯에 아직 참여하지 못한 희소 소유주가 있는지 확인
+    const hasUnincludedScarceOwner = slotAvail.some(c => {
+      const slotCnt = ownerSlotCount.get(c.owner_id) || 0;
+      // 가용 슬롯이 3개 이하인 소유주
+      return slotCnt <= 3 && !usedCharIds.has(c.id);
+    });
+
+    if (!hasUnincludedScarceOwner) continue;
+    if (slotAvail.length < 2) continue;
+    if (globalBotCount >= MAX_TOTAL_BOTS) break;
+
+    const rem = MAX_TOTAL_BOTS - globalBotCount;
+    const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, globalBotCount, Math.min(maxBotsPerRaid, rem), usedOwnersInSlot);
+    if (!result) continue;
+    raids.push(result.raid);
+    globalBotCount += result.raid.botCount;
+    for (const c of result.usedChars) usedCharIds.add(c.id);
+    raidId++;
+  }
+
+  // 2단계: 나머지 슬롯에서 봇 없이 공격대 구성
+  for (const sg of slotGroups) {
+    while (true) {
+      const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
+      const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
+      if (slotAvail.length < 2) break;
+      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, 0, 0, usedOwnersInSlot);
+      if (!result) break;
+      raids.push(result.raid);
+      for (const c of result.usedChars) usedCharIds.add(c.id);
+      raidId++;
+    }
+  }
+
+  // 3단계: 남은 슬롯에서 봇 포함
+  for (const sg of slotGroups) {
+    if (globalBotCount >= MAX_TOTAL_BOTS) break;
+    while (globalBotCount < MAX_TOTAL_BOTS) {
+      const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
+      const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
+      if (slotAvail.length < 2) break;
+      const rem = MAX_TOTAL_BOTS - globalBotCount;
+      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, globalBotCount, Math.min(maxBotsPerRaid, rem), usedOwnersInSlot);
+      if (!result) break;
+      raids.push(result.raid);
+      globalBotCount += result.raid.botCount;
+      for (const c of result.usedChars) usedCharIds.add(c.id);
+      raidId++;
+    }
+  }
+
+  if (raids.length === 0) return null;
+
+  const comp: RaidComposition = {
+    raids: sortRaidsBotsLast(raids),
+    excludedCharacters: getExcluded(allChars, usedCharIds),
+    score: 0,
+  };
+  comp.score = scoreComposition(comp, raidType);
+  return comp;
+}
+
 // 조합에서 스펙미달+봇이 같은 공격대에 있는지 체크
 function hasUnderpoweredWithBot(comp: RaidComposition): boolean {
   for (const raid of comp.raids) {
@@ -934,6 +1034,10 @@ function generateCompositions(slotGroups: SlotGroup[], maxBots: number, raidType
 
   const timeOrdered = crossSlotComposition(slotGroups, maxBots, 'balanced', raidType);
   if (timeOrdered) allResults.push(timeOrdered);
+
+  // 소유주 포함 우선 전략
+  const inclusive = inclusiveComposition(slotGroups, maxBots, raidType);
+  if (inclusive) allResults.push(inclusive);
 
   // 최대 공격대 수 전략 (다양한 seed)
   for (let seed = 0; seed < 30; seed++) {
