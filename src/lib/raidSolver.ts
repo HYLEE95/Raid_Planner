@@ -368,6 +368,22 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
   return score;
 }
 
+// 슬롯 그룹을 상위 DPS 전투력 기준 내림차순 정렬 (강캐 시간대 우선 처리)
+function sortSlotsByTopDps(slots: SlotGroup[], usedCharIds: Set<string>): SlotGroup[] {
+  return [...slots].sort((a, b) => {
+    const getTopAvg = (sg: SlotGroup) => {
+      const dps = sg.characters
+        .filter(c => !usedCharIds.has(c.id) && (c.class_type === '근딜' || c.class_type === '원딜'))
+        .map(c => c.combat_power)
+        .sort((x, y) => y - x);
+      if (dps.length === 0) return 0;
+      // 상위 6명 DPS 평균 (파티 DPS 슬롯 수)
+      return dps.slice(0, 6).reduce((s, v) => s + v, 0) / Math.min(6, dps.length);
+    };
+    return getTopAvg(b) - getTopAvg(a);
+  });
+}
+
 function compositionKey(comp: RaidComposition): string {
   const raidKeys = comp.raids.map(r => {
     const t1 = r.team1.members.map(m => m.nickname).sort().join(',');
@@ -457,11 +473,10 @@ function tryFormRaid(
     return null;
   }
 
-  // 나머지 배치 (DPS 우선, 전투력 균형 기반 + 근딜/원딜 분산)
-  // 봇 공격대(maxBotsPerRaid > 0)일 때는 약한 캐릭터 우선 → 강한 캐릭터를 봇 없는 공격대에 남김
+  // 나머지 배치 (DPS 우선, 전투력 내림차순 — 강한 캐릭 우선 배치로 제외 방지)
   const remainingDps = eligible
     .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '근딜' || c.class_type === '원딜'))
-    .sort((a, b) => maxBotsPerRaid > 0 ? a.combat_power - b.combat_power : b.combat_power - a.combat_power);
+    .sort((a, b) => b.combat_power - a.combat_power);
 
   const teamDpsSum = (team: RaidMember[]) =>
     team.filter(m => m.class_type === '근딜' || m.class_type === '원딜').reduce((s, m) => s + m.combat_power, 0);
@@ -846,7 +861,7 @@ function applyRescue(
 function crossSlotComposition(
   slotGroups: SlotGroup[],
   _maxBotsPerRaid: number,
-  strategy: 'greedy' | 'balanced',
+  _strategy: 'greedy' | 'balanced',
   raidType: RaidType = '루드라'
 ): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
@@ -857,19 +872,9 @@ function crossSlotComposition(
   let globalBotCount = 0;
   let raidId = 1;
 
-  const getSlotOrder = () => {
-    if (strategy === 'greedy') {
-      return [...slotGroups].sort((a, b) => {
-        const aAvail = a.characters.filter(c => !usedCharIds.has(c.id)).length;
-        const bAvail = b.characters.filter(c => !usedCharIds.has(c.id)).length;
-        return bAvail - aAvail;
-      });
-    }
-    return [...slotGroups];
-  };
-
+  // 강캐 시간대 우선 처리 (Stage 1)
   // 1단계: 봇 포함하여 공격대 구성 (공격대당 최대 MAX_BOTS_NORMAL봇)
-  const sortedSlots = getSlotOrder();
+  const sortedSlots = sortSlotsByTopDps(slotGroups, usedCharIds);
   for (const sg of sortedSlots) {
     if (globalBotCount >= MAX_TOTAL_BOTS) break;
     while (globalBotCount < MAX_TOTAL_BOTS) {
@@ -888,8 +893,7 @@ function crossSlotComposition(
 
   // 2단계: 마지막 공격대 (최대 MAX_BOTS_LAST봇)
   if (globalBotCount < MAX_TOTAL_BOTS) {
-    const sortedSlots2 = getSlotOrder();
-    for (const sg of sortedSlots2) {
+    for (const sg of slotGroups) {
       if (globalBotCount >= MAX_TOTAL_BOTS) break;
       const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
       const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
@@ -926,7 +930,9 @@ function crossSlotBalanced(slotGroups: SlotGroup[], _maxBots: number, raidType: 
   let globalBotCount = 0;
   let raidId = 1;
 
-  for (const sg of slotGroups) {
+  // 강캐 시간대 우선
+  const cpSortedSlots = sortSlotsByTopDps(slotGroups, usedCharIds);
+  for (const sg of cpSortedSlots) {
     const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
     const available = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
     if (available.length < 2) continue;
@@ -1052,11 +1058,14 @@ function shuffledComposition(
     characters: shuffle(sg.characters, seed + sg.slot.date.charCodeAt(0)),
   }));
 
-  const orderedSlots = seed % 3 === 0
+  const emptyUsed2 = new Set<string>();
+  const orderedSlots = seed % 4 === 0
     ? [...shuffledSlots].reverse()
-    : seed % 3 === 1
+    : seed % 4 === 1
       ? shuffle(shuffledSlots, seed)
-      : shuffledSlots;
+      : seed % 4 === 2
+        ? sortSlotsByTopDps(shuffledSlots, emptyUsed2) // 강캐 시간대 우선 + 캐릭터 셔플
+        : shuffledSlots;
 
   const raids: RaidGroup[] = [];
   const usedCharIds = new Set<string>();
@@ -1146,14 +1155,17 @@ function maxRaidsComposition(
     return aOwners - bOwners; // 적은 인원 시간대 우선
   });
 
-  // seed로 전략 변형
-  const orderedSlots = seed % 4 === 0
+  // seed로 전략 변형 (5가지: 강캐우선 추가)
+  const emptyUsed = new Set<string>();
+  const orderedSlots = seed % 5 === 0
     ? slotsByScarcity
-    : seed % 4 === 1
+    : seed % 5 === 1
       ? [...slotsByScarcity].reverse()
-      : seed % 4 === 2
+      : seed % 5 === 2
         ? shuffle(slotGroups, seed)
-        : slotGroups;
+        : seed % 5 === 3
+          ? sortSlotsByTopDps(slotGroups, emptyUsed) // 강캐 시간대 우선
+          : slotGroups;
 
   const raids: RaidGroup[] = [];
   const usedCharIds = new Set<string>();
@@ -1264,8 +1276,9 @@ function inclusiveComposition(
     raidId++;
   }
 
-  // 2단계: 나머지 슬롯에서 봇 포함하여 공격대 구성 (공격대당 최대 MAX_BOTS_NORMAL봇)
-  for (const sg of slotGroups) {
+  // 2단계: 강캐 시간대 우선으로 나머지 슬롯에서 공격대 구성
+  const cpSortedSlots2 = sortSlotsByTopDps(slotGroups, usedCharIds);
+  for (const sg of cpSortedSlots2) {
     if (globalBotCount >= MAX_TOTAL_BOTS) break;
     while (globalBotCount < MAX_TOTAL_BOTS) {
       const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
