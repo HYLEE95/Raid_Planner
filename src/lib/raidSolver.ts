@@ -77,8 +77,8 @@ function buildSlotGroups(registrations: DBRegistration[]): SlotGroup[] {
                 ownerName: e.reg.owner_name,
                 nickname: char.nickname,
                 class_type: char.class_type,
-                combat_power: char.combat_power,
-                can_clear_raid: char.can_clear_raid,
+                combat_power: char.combat_power ?? 0,
+                can_clear_raid: char.can_clear_raid ?? false,
                 is_underpowered: char.is_underpowered ?? false,
               });
             }
@@ -181,9 +181,12 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
   // 모든 팀 간 전투력 균등
   const allTeamAvgs: number[] = [];
   for (const raid of validRaids) {
-    allTeamAvgs.push(raid.team1.avgCombatPower, raid.team2.avgCombatPower);
-    const teamDiff = Math.abs(raid.team1.avgCombatPower - raid.team2.avgCombatPower);
-    score += teamDiff * 20;
+    allTeamAvgs.push(raid.team1.avgCombatPower);
+    if (raid.team2) {
+      allTeamAvgs.push(raid.team2.avgCombatPower);
+      const teamDiff = Math.abs(raid.team1.avgCombatPower - raid.team2.avgCombatPower);
+      score += teamDiff * 20;
+    }
   }
   if (allTeamAvgs.length > 1) {
     const teamMean = allTeamAvgs.reduce((a, b) => a + b, 0) / allTeamAvgs.length;
@@ -194,11 +197,12 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
   // 근딜 없는 팀 패널티
   for (const raid of comp.raids) {
     if (!raid.team1.members.some(m => m.class_type === '근딜')) score += 200;
-    if (!raid.team2.members.some(m => m.class_type === '근딜')) score += 200;
+    if (raid.team2 && !raid.team2.members.some(m => m.class_type === '근딜')) score += 200;
   }
 
   // 서포트 과다 팀 패널티 (되도록 한 파티에 여러 서포트 비선호)
   for (const raid of comp.raids) {
+    if (!raid.team2) continue;
     const t1Support = countSupportInTeam(raid.team1.members);
     const t2Support = countSupportInTeam(raid.team2.members);
     if (t1Support > 1) score += (t1Support - 1) * 300;
@@ -209,15 +213,14 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
     if (totalSupport >= 3) {
       const t1Healers = raid.team1.members.filter(m => m.class_type === '치유성').length;
       const t2Healers = raid.team2.members.filter(m => m.class_type === '치유성').length;
-      // 양 팀 모두 치유성이 있으면 보너스 (패널티 감소)
       if (t1Healers >= 1 && t2Healers >= 1) score -= 150;
-      // 한 쪽에만 치유성이 몰려 있으면 패널티
       if (t1Healers === 0 || t2Healers === 0) score += 200;
     }
   }
 
   // 전투력이 강한 딜러는 호법성과 같은 팀에 있으면 보너스
   for (const raid of comp.raids) {
+    if (!raid.team2) continue;
     const allDealers = [...raid.team1.members, ...raid.team2.members]
       .filter(m => (m.class_type === '근딜' || m.class_type === '원딜') && !('isBot' in m && m.isBot));
     if (allDealers.length === 0) continue;
@@ -237,7 +240,7 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
   // 스펙 미달 인원과 봇이 같은 공격대에 있으면 큰 패널티
   for (const raid of comp.raids) {
     if (raid.botCount === 0) continue;
-    const allMembers = [...raid.team1.members, ...raid.team2.members];
+    const allMembers = [...raid.team1.members, ...(raid.team2?.members || [])];
     const hasUnder = allMembers.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
     if (hasUnder) score += 30000;
   }
@@ -249,6 +252,7 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
 
   // 2파티 전투력이 1파티보다 높아야 함
   for (const raid of comp.raids) {
+    if (!raid.team2) continue;
     if (raid.team1.avgCombatPower > raid.team2.avgCombatPower) {
       score += (raid.team1.avgCombatPower - raid.team2.avgCombatPower) * 100;
     }
@@ -260,7 +264,7 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
       if (raid.team1.avgCombatPower < 160 && raid.botCount === 0) {
         score += (160 - raid.team1.avgCombatPower) * 50;
       }
-      if (raid.team2.avgCombatPower < 160 && raid.botCount === 0) {
+      if (raid.team2 && raid.team2.avgCombatPower < 160 && raid.botCount === 0) {
         score += (160 - raid.team2.avgCombatPower) * 50;
       }
     }
@@ -269,7 +273,7 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
   // 소유주별 참여 여부: 한번도 참여 못한 소유주가 있으면 큰 패널티
   const participatingOwners = new Set<string>();
   for (const raid of comp.raids) {
-    for (const m of [...raid.team1.members, ...raid.team2.members]) {
+    for (const m of [...raid.team1.members, ...(raid.team2?.members || [])]) {
       if (!('isBot' in m && m.isBot) && 'owner_id' in m) {
         participatingOwners.add((m as any).owner_id);
       }
@@ -303,7 +307,7 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
 function compositionKey(comp: RaidComposition): string {
   const raidKeys = comp.raids.map(r => {
     const t1 = r.team1.members.map(m => m.nickname).sort().join(',');
-    const t2 = r.team2.members.map(m => m.nickname).sort().join(',');
+    const t2 = r.team2 ? r.team2.members.map(m => m.nickname).sort().join(',') : '';
     const slotKey = `${r.timeSlot.date}_${r.timeSlot.start_time}`;
     return [slotKey, [t1, t2].sort().join('|')].join('::');
   });
@@ -552,7 +556,7 @@ function getOwnersInOverlappingRaids(raids: RaidGroup[], slot: TimeSlot): Set<st
   const owners = new Set<string>();
   for (const raid of raids) {
     if (slotsOverlapWithDuration(raid.timeSlot, slot)) {
-      for (const m of [...raid.team1.members, ...raid.team2.members]) {
+      for (const m of [...raid.team1.members, ...(raid.team2?.members || [])]) {
         if (!('isBot' in m && m.isBot) && 'owner_id' in m) {
           owners.add((m as any).owner_id);
         }
@@ -1000,7 +1004,7 @@ function inclusiveComposition(
 function hasUnderpoweredWithBot(comp: RaidComposition): boolean {
   for (const raid of comp.raids) {
     if (raid.botCount === 0) continue;
-    const allMembers = [...raid.team1.members, ...raid.team2.members];
+    const allMembers = [...raid.team1.members, ...(raid.team2?.members || [])];
     const hasUnder = allMembers.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered);
     if (hasUnder) return true;
   }
@@ -1116,5 +1120,417 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
     if (exDiff !== 0) return exDiff;
     return a.score - b.score;
   });
+  return unique.slice(0, 4);
+}
+
+// ==========================================
+// 브리레흐 1-3관문 솔버
+// ==========================================
+
+interface BriCharWithOwner {
+  id: string;
+  owner_id: string;
+  ownerName: string;
+  nickname: string;
+  class_type: ClassType;
+  has_destruction_robe: boolean;
+  has_soul_weapon: boolean;
+  desired_clears: number;
+  combat_power: number; // 0 (미사용, 타입 호환용)
+  can_clear_raid: boolean;
+  is_underpowered: boolean;
+  isBot?: false;
+}
+
+interface BriSlotGroup {
+  slot: TimeSlot;
+  characters: BriCharWithOwner[];
+}
+
+function buildBriSlotGroups(registrations: DBRegistration[]): BriSlotGroup[] {
+  const byDate = new Map<string, { reg: DBRegistration; slot: TimeSlot }[]>();
+  for (const reg of registrations) {
+    for (const slot of reg.time_slots) {
+      if (!byDate.has(slot.date)) byDate.set(slot.date, []);
+      byDate.get(slot.date)!.push({ reg, slot });
+    }
+  }
+
+  const result: BriSlotGroup[] = [];
+
+  for (const [, entries] of byDate) {
+    const uniqueSlots = new Map<string, TimeSlot>();
+    for (const e of entries) {
+      const key = `${e.slot.start_time}_${e.slot.end_time}`;
+      uniqueSlots.set(key, e.slot);
+    }
+
+    for (const [, slot] of uniqueSlots) {
+      const chars: BriCharWithOwner[] = [];
+      for (const e of entries) {
+        if (e.slot.start_time <= slot.start_time && e.slot.end_time >= slot.end_time) {
+          for (const char of e.reg.characters) {
+            const charId = `${e.reg.id}_${char.nickname}`;
+            if (!chars.find(c => c.id === charId)) {
+              chars.push({
+                id: charId,
+                owner_id: e.reg.id,
+                ownerName: e.reg.owner_name,
+                nickname: char.nickname,
+                class_type: char.class_type,
+                has_destruction_robe: char.has_destruction_robe ?? false,
+                has_soul_weapon: char.has_soul_weapon ?? false,
+                desired_clears: char.desired_clears ?? 1,
+                combat_power: 0,
+                can_clear_raid: false,
+                is_underpowered: false,
+              });
+            }
+          }
+        }
+      }
+
+      if (chars.length > 0) {
+        result.push({ slot, characters: chars });
+      }
+    }
+  }
+
+  result.sort((a, b) => {
+    const d = a.slot.date.localeCompare(b.slot.date);
+    return d !== 0 ? d : a.slot.start_time.localeCompare(b.slot.start_time);
+  });
+  return result;
+}
+
+function getAllBriChars(slotGroups: BriSlotGroup[]): BriCharWithOwner[] {
+  const seen = new Set<string>();
+  const result: BriCharWithOwner[] = [];
+  for (const sg of slotGroups) {
+    for (const c of sg.characters) {
+      if (!seen.has(c.id)) { seen.add(c.id); result.push(c); }
+    }
+  }
+  return result;
+}
+
+// 브리레흐 파티 유효성 검사
+function isValidBriParty(members: BriCharWithOwner[]): boolean {
+  const size = members.length;
+  if (size < 4 || size > 8) return false;
+
+  const sagaCount = members.filter(m => m.class_type === '세가').length;
+  const sebaCount = members.filter(m => m.class_type === '세바').length;
+  const dealers = members.filter(m => m.class_type === '딜러');
+
+  // 반드시 세가 1명
+  if (sagaCount !== 1) return false;
+
+  // 세바 규칙
+  if (size <= 6) {
+    if (sebaCount !== 1) return false;
+  } else {
+    if (sebaCount < 1 || sebaCount > 2) return false;
+  }
+
+  // 5인 이하: 딜러 전원 파멸의 로브 필수
+  if (size <= 5) {
+    if (dealers.some(d => !d.has_destruction_robe)) return false;
+  }
+
+  // 4인: 딜러 전원 소울 무기 필수
+  if (size === 4) {
+    if (dealers.some(d => !d.has_soul_weapon)) return false;
+  }
+
+  return true;
+}
+
+// 브리레흐 파티 선호도 점수 (낮을수록 좋음)
+function scoreBriParty(members: BriCharWithOwner[]): number {
+  let score = 0;
+  const size = members.length;
+
+  // 7인에서 세바 1명 선호, 8인에서 세바 2명 선호
+  const sebaCount = members.filter(m => m.class_type === '세바').length;
+  if (size === 7 && sebaCount > 1) score += 50;
+  if (size === 8 && sebaCount < 2) score += 50;
+
+  // 큰 파티 선호
+  score -= size * 10;
+
+  return score;
+}
+
+// 브리레흐 조합 점수
+function scoreBriComposition(comp: RaidComposition, allChars: BriCharWithOwner[]): number {
+  let score = 0;
+
+  // 제외 인원 최소화
+  score += comp.excludedCharacters.length * 10000;
+
+  // 희망 클리어 횟수 충족도
+  const charClears = new Map<string, number>();
+  for (const raid of comp.raids) {
+    for (const m of raid.team1.members) {
+      if (!('isBot' in m && m.isBot)) {
+        const key = m.nickname;
+        charClears.set(key, (charClears.get(key) || 0) + 1);
+      }
+    }
+  }
+
+  for (const c of allChars) {
+    const actual = charClears.get(c.nickname) || 0;
+    const desired = c.desired_clears;
+    if (actual < desired) {
+      score += (desired - actual) * 500; // 미달 패널티
+    } else if (actual > desired) {
+      score += (actual - desired) * 200; // 초과 패널티 (약함)
+    }
+  }
+
+  // 소유주별 참여 여부
+  const participatingOwners = new Set<string>();
+  for (const raid of comp.raids) {
+    for (const m of raid.team1.members) {
+      if (!('isBot' in m && m.isBot) && 'owner_id' in m) {
+        participatingOwners.add((m as any).owner_id);
+      }
+    }
+  }
+  const allOwners = new Set(allChars.map(c => c.owner_id));
+  for (const oid of allOwners) {
+    if (!participatingOwners.has(oid)) score += 15000;
+  }
+
+  // 파티 점수
+  for (const raid of comp.raids) {
+    const members = raid.team1.members as any as BriCharWithOwner[];
+    score += scoreBriParty(members);
+  }
+
+  return score;
+}
+
+// 브리레흐 파티 형성 시도
+function tryFormBriParty(
+  available: BriCharWithOwner[],
+  usedCharIds: Set<string>,
+  timeSlot: TimeSlot,
+  raidId: number,
+  usedOwnersInSlot: Set<string>,
+  targetSize: number,
+): { raid: RaidGroup; usedChars: BriCharWithOwner[] } | null {
+  const eligible = available.filter(
+    c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id)
+  );
+
+  if (eligible.length < Math.min(4, targetSize)) return null;
+
+  const sagas = eligible.filter(c => c.class_type === '세가');
+  const sebas = eligible.filter(c => c.class_type === '세바');
+  const dealers = eligible.filter(c => c.class_type === '딜러');
+
+  if (sagas.length < 1) return null;
+  if (sebas.length < 1) return null;
+
+  const party: BriCharWithOwner[] = [];
+  const usedOwners = new Set<string>();
+
+  const addMember = (char: BriCharWithOwner): boolean => {
+    if (usedOwners.has(char.owner_id)) return false;
+    party.push(char);
+    usedOwners.add(char.owner_id);
+    return true;
+  };
+
+  // 1. 세가 1명 배치
+  const saga = sagas.find(s => !usedOwners.has(s.owner_id));
+  if (!saga) return null;
+  addMember(saga);
+
+  // 2. 세바 배치 (7인+ 파티는 2명까지)
+  const sebaTarget = targetSize >= 8 ? 2 : 1;
+  let sebaAdded = 0;
+  for (const seba of sebas) {
+    if (sebaAdded >= sebaTarget) break;
+    if (usedOwners.has(seba.owner_id)) continue;
+    addMember(seba);
+    sebaAdded++;
+  }
+  if (sebaAdded < 1) return null;
+
+  // 3. 딜러 채우기
+  // targetSize가 5 이하면 파멸의 로브 필수, 4이면 소울 무기도 필수
+  const filteredDealers = dealers.filter(d => {
+    if (targetSize <= 5 && !d.has_destruction_robe) return false;
+    if (targetSize === 4 && !d.has_soul_weapon) return false;
+    return true;
+  });
+
+  // 희망 클리어 횟수 높은 딜러 우선
+  const sortedDealers = [...filteredDealers].sort((a, b) => b.desired_clears - a.desired_clears);
+
+  for (const dealer of sortedDealers) {
+    if (party.length >= targetSize) break;
+    if (usedOwners.has(dealer.owner_id)) continue;
+    addMember(dealer);
+  }
+
+  // 7인+ 파티에서 세바 추가 배치 시도
+  if (party.length >= 7 && sebaAdded < 2) {
+    for (const seba of sebas) {
+      if (party.length >= targetSize) break;
+      if (usedOwners.has(seba.owner_id)) continue;
+      if (party.includes(seba)) continue;
+      addMember(seba);
+      sebaAdded++;
+      if (sebaAdded >= 2) break;
+    }
+  }
+
+  if (!isValidBriParty(party)) return null;
+
+  const team: Team = {
+    members: party.map(c => ({ ...c, isBot: false as const, ownerName: c.ownerName })),
+    avgCombatPower: 0,
+  };
+
+  return {
+    raid: {
+      id: raidId,
+      team1: team,
+      avgCombatPower: 0,
+      botCount: 0,
+      timeSlot,
+    },
+    usedChars: party,
+  };
+}
+
+function getBriOwnersInOverlappingRaids(raids: RaidGroup[], slot: TimeSlot): Set<string> {
+  const owners = new Set<string>();
+  for (const raid of raids) {
+    if (slotsOverlapWithDuration(raid.timeSlot, slot)) {
+      for (const m of raid.team1.members) {
+        if (!('isBot' in m && m.isBot) && 'owner_id' in m) {
+          owners.add((m as any).owner_id);
+        }
+      }
+    }
+  }
+  return owners;
+}
+
+function solveBriComposition(
+  slotGroups: BriSlotGroup[],
+  seed: number = 0,
+): RaidComposition | null {
+  const allChars = getAllBriChars(slotGroups);
+  if (allChars.length === 0) return null;
+
+  const raids: RaidGroup[] = [];
+  const usedCharIds = new Set<string>();
+  let raidId = 1;
+
+  // 소유주별 남은 희망 클리어 횟수 추적
+  const ownerRemainingClears = new Map<string, number>();
+  for (const c of allChars) {
+    const current = ownerRemainingClears.get(c.owner_id) || 0;
+    ownerRemainingClears.set(c.owner_id, Math.max(current, c.desired_clears));
+  }
+
+  // 시간대 순서 (seed로 변형)
+  const orderedSlots = seed === 0
+    ? [...slotGroups]
+    : seed % 3 === 0
+      ? [...slotGroups].reverse()
+      : shuffle(slotGroups, seed);
+
+  // 다양한 파티 크기로 시도 (8→4)
+  const partySizes = seed % 2 === 0 ? [8, 7, 6, 5, 4] : [6, 7, 8, 5, 4];
+
+  for (const targetSize of partySizes) {
+    for (const sg of orderedSlots) {
+      let attempts = 0;
+      while (attempts < 5) {
+        attempts++;
+        const usedOwnersInSlot = getBriOwnersInOverlappingRaids(raids, sg.slot);
+        const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
+        if (slotAvail.length < 4) break;
+
+        const result = tryFormBriParty(sg.characters, usedCharIds, sg.slot, raidId, usedOwnersInSlot, targetSize);
+        if (!result) break;
+
+        raids.push(result.raid);
+        for (const c of result.usedChars) usedCharIds.add(c.id);
+        raidId++;
+      }
+    }
+  }
+
+  if (raids.length === 0) return null;
+
+  const excluded = allChars
+    .filter(c => !usedCharIds.has(c.id))
+    .map(c => ({
+      id: c.id, owner_id: c.owner_id, nickname: c.nickname,
+      class_type: c.class_type, combat_power: 0,
+      can_clear_raid: false, is_underpowered: false,
+      ownerName: c.ownerName,
+    }));
+
+  const comp: RaidComposition = {
+    raids: raids.map((r, i) => ({ ...r, id: i + 1 })),
+    excludedCharacters: excluded,
+    score: 0,
+  };
+  comp.score = scoreBriComposition(comp, allChars);
+  return comp;
+}
+
+function brCompositionKey(comp: RaidComposition): string {
+  const raidKeys = comp.raids.map(r => {
+    const members = r.team1.members.map(m => m.nickname).sort().join(',');
+    const slotKey = `${r.timeSlot.date}_${r.timeSlot.start_time}`;
+    return `${slotKey}::${members}`;
+  });
+  raidKeys.sort();
+  return raidKeys.join('||');
+}
+
+// 브리레흐 메인 솔버
+export function solveBriRaidComposition(registrations: DBRegistration[]): RaidComposition[] {
+  if (registrations.length === 0) return [];
+
+  const slotGroups = buildBriSlotGroups(registrations);
+
+  const allResults: RaidComposition[] = [];
+
+  // 다양한 전략으로 조합 생성
+  for (let seed = 0; seed < 80; seed++) {
+    const comp = solveBriComposition(slotGroups, seed * 7919);
+    if (comp) allResults.push(comp);
+  }
+
+  // 중복 제거
+  const seen = new Set<string>();
+  const unique: RaidComposition[] = [];
+  for (const comp of allResults) {
+    const key = brCompositionKey(comp);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(comp);
+    }
+  }
+
+  // 점수순 정렬
+  unique.sort((a, b) => {
+    const exDiff = a.excludedCharacters.length - b.excludedCharacters.length;
+    if (exDiff !== 0) return exDiff;
+    return a.score - b.score;
+  });
+
   return unique.slice(0, 4);
 }

@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import type { RaidComposition, RaidGroup, RaidMember, ClassType } from '../../lib/types';
+import type { RaidComposition, RaidGroup, RaidMember, RaidType } from '../../lib/types';
 
-const CLASS_BADGE: Record<ClassType, string> = {
+const CLASS_BADGE: Record<string, string> = {
   '근딜': 'bg-red-500 text-white',
   '원딜': 'bg-blue-500 text-white',
   '호법성': 'bg-yellow-500 text-white',
   '치유성': 'bg-green-500 text-white',
+  '세가': 'bg-purple-500 text-white',
+  '세바': 'bg-teal-500 text-white',
+  '딜러': 'bg-rose-500 text-white',
 };
 
 const DAY_NAMES = ['일', '월', '화', '수', '목', '금', '토'];
@@ -18,9 +21,10 @@ function formatDateWithDay(dateStr: string): string {
   return `${month}/${day}(${dayName})`;
 }
 
-function MemberCard({ member }: { member: RaidMember }) {
+function MemberCard({ member, raidType }: { member: RaidMember; raidType?: RaidType }) {
   const isBot = 'isBot' in member && member.isBot;
   const isUnderpowered = !isBot && 'is_underpowered' in member && (member as any).is_underpowered;
+  const isBri = raidType === '브리레흐';
 
   return (
     <div
@@ -33,7 +37,7 @@ function MemberCard({ member }: { member: RaidMember }) {
       }`}
     >
       <span
-        className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${CLASS_BADGE[member.class_type]}`}
+        className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${CLASS_BADGE[member.class_type] || 'bg-gray-500 text-white'}`}
       >
         {member.class_type}
       </span>
@@ -45,46 +49,70 @@ function MemberCard({ member }: { member: RaidMember }) {
       {isUnderpowered && (
         <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200 shrink-0 whitespace-nowrap">저스펙</span>
       )}
-      <span className="text-xs text-gray-500 ml-auto shrink-0 whitespace-nowrap">{member.combat_power}K</span>
+      {!isBri && (
+        <span className="text-xs text-gray-500 ml-auto shrink-0 whitespace-nowrap">{member.combat_power}K</span>
+      )}
+      {isBri && !isBot && 'has_destruction_robe' in member && (member as any).has_destruction_robe && (
+        <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700 shrink-0 whitespace-nowrap">로브</span>
+      )}
+      {isBri && !isBot && 'has_soul_weapon' in member && (member as any).has_soul_weapon && (
+        <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700 shrink-0 whitespace-nowrap">소울</span>
+      )}
       {!isBot && 'ownerName' in member && (
-        <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap">({member.ownerName})</span>
+        <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-auto">({member.ownerName})</span>
       )}
     </div>
   );
 }
 
-function TeamCard({ team, label }: { team: { members: RaidMember[]; avgCombatPower: number }; label: string }) {
+function TeamCard({ team, label, raidType }: { team: { members: RaidMember[]; avgCombatPower: number }; label: string; raidType?: RaidType }) {
+  const isBri = raidType === '브리레흐';
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{label}</h4>
-        <span className="text-xs text-gray-600 dark:text-gray-400">
-          평균(딜러) {team.avgCombatPower.toFixed(1)}K
-        </span>
+        {!isBri && (
+          <span className="text-xs text-gray-600 dark:text-gray-400">
+            평균(딜러) {team.avgCombatPower.toFixed(1)}K
+          </span>
+        )}
+        {isBri && (
+          <span className="text-xs text-gray-600 dark:text-gray-400">
+            {team.members.length}인
+          </span>
+        )}
       </div>
       <div className="space-y-1">
         {team.members.map((member, idx) => (
-          <MemberCard key={idx} member={member} />
+          <MemberCard key={idx} member={member} raidType={raidType} />
         ))}
       </div>
     </div>
   );
 }
 
-function RaidGroupCard({ raid }: { raid: RaidGroup }) {
+function RaidGroupCard({ raid, raidType }: { raid: RaidGroup; raidType?: RaidType }) {
+  const isBri = raidType === '브리레흐';
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
         <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-          공격대 {raid.id}
+          {isBri ? `파티 ${raid.id}` : `공격대 ${raid.id}`}
         </h3>
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-gray-600 dark:text-gray-400">
             {formatDateWithDay(raid.timeSlot.date)} {raid.timeSlot.start_time}~{raid.timeSlot.end_time}
           </span>
-          <span className="text-sm font-medium text-indigo-600">
-            평균(딜러) {raid.avgCombatPower.toFixed(1)}K
-          </span>
+          {!isBri && (
+            <span className="text-sm font-medium text-indigo-600">
+              평균(딜러) {raid.avgCombatPower.toFixed(1)}K
+            </span>
+          )}
+          {isBri && (
+            <span className="text-sm font-medium text-indigo-600">
+              {raid.team1.members.length}인 파티
+            </span>
+          )}
           {raid.botCount > 0 && (
             <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">
               공방인원 {raid.botCount}명
@@ -94,16 +122,35 @@ function RaidGroupCard({ raid }: { raid: RaidGroup }) {
       </div>
 
       <div className="flex gap-4 flex-wrap">
-        <TeamCard team={raid.team1} label="1팀" />
-        <TeamCard team={raid.team2} label="2팀" />
+        {isBri ? (
+          <TeamCard team={raid.team1} label="파티원" raidType={raidType} />
+        ) : (
+          <>
+            <TeamCard team={raid.team1} label="1팀" raidType={raidType} />
+            {raid.team2 && <TeamCard team={raid.team2} label="2팀" raidType={raidType} />}
+          </>
+        )}
       </div>
     </div>
   );
 }
 
 // 조합 요약 정보
-function CompositionSummary({ comp }: { comp: RaidComposition }) {
+function CompositionSummary({ comp, raidType }: { comp: RaidComposition; raidType?: RaidType }) {
+  const isBri = raidType === '브리레흐';
   const totalBots = comp.raids.reduce((s, r) => s + r.botCount, 0);
+
+  if (isBri) {
+    return (
+      <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+        <span>파티 {comp.raids.length}개</span>
+        {comp.excludedCharacters.length > 0 && (
+          <span className="text-orange-500">제외 {comp.excludedCharacters.length}명</span>
+        )}
+      </div>
+    );
+  }
+
   const avgPower = comp.raids.length > 0
     ? (comp.raids.reduce((s, r) => s + r.avgCombatPower, 0) / comp.raids.length).toFixed(1)
     : '0';
@@ -125,9 +172,10 @@ interface RaidResultProps {
   selectedIndex: number;
   onSelectIndex: (idx: number) => void;
   onConfirm?: (comp: RaidComposition) => void;
+  raidType?: RaidType;
 }
 
-export default function RaidResult({ compositions, onConfirm }: RaidResultProps) {
+export default function RaidResult({ compositions, onConfirm, raidType }: RaidResultProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   if (compositions.length === 0) {
@@ -166,7 +214,7 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
             >
               <div className="flex items-center gap-3">
                 <span className="text-base font-bold text-gray-900 dark:text-gray-100">조합 {idx + 1}</span>
-                <CompositionSummary comp={comp} />
+                <CompositionSummary comp={comp} raidType={raidType} />
               </div>
               <div className="flex items-center gap-2">
                 {onConfirm && (
@@ -201,7 +249,7 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
               <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                   {sortedRaids.map(raid => (
-                    <RaidGroupCard key={raid.id} raid={raid} />
+                    <RaidGroupCard key={raid.id} raid={raid} raidType={raidType} />
                   ))}
                 </div>
 

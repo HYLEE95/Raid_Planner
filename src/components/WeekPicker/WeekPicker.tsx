@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { getWednesday, formatDate, formatWeekLabel } from '../../lib/storage';
+import { getWeekStart, formatDate, formatWeekLabel } from '../../lib/storage';
 
 interface WeekPickerProps {
-  value: string; // 선택된 수요일 YYYY-MM-DD
+  value: string; // 선택된 주 시작일 YYYY-MM-DD
   onChange: (weekStart: string) => void;
+  resetDay?: number; // 주간 초기화 요일 (3=수, 4=목, 기본 3)
 }
 
 const DAY_HEADERS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -30,14 +31,14 @@ function getCalendarDays(year: number, month: number): (Date | null)[] {
   return days;
 }
 
-export default function WeekPicker({ value, onChange }: WeekPickerProps) {
+export default function WeekPicker({ value, onChange, resetDay = 3 }: WeekPickerProps) {
   const [open, setOpen] = useState(false);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const selectedWed = new Date(value + 'T00:00:00');
-  const [viewYear, setViewYear] = useState(selectedWed.getFullYear());
-  const [viewMonth, setViewMonth] = useState(selectedWed.getMonth());
+  const selectedStart = new Date(value + 'T00:00:00');
+  const [viewYear, setViewYear] = useState(selectedStart.getFullYear());
+  const [viewMonth, setViewMonth] = useState(selectedStart.getMonth());
 
   const ref = useRef<HTMLDivElement>(null);
 
@@ -54,17 +55,17 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
 
   const days = getCalendarDays(viewYear, viewMonth);
 
-  // 선택된 주의 범위 (수~화)
-  const weekEnd = new Date(selectedWed);
+  // 선택된 주의 범위 (시작일 ~ 시작일+6)
+  const weekEnd = new Date(selectedStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
 
   function isInSelectedWeek(date: Date): boolean {
-    return date >= selectedWed && date <= weekEnd;
+    return date >= selectedStart && date <= weekEnd;
   }
 
   function handleDayClick(date: Date) {
-    const wed = getWednesday(date);
-    onChange(formatDate(wed));
+    const start = getWeekStart(date, resetDay);
+    onChange(formatDate(start));
     setOpen(false);
   }
 
@@ -86,6 +87,12 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
     }
   }
 
+  // 주 시작일 요일인지
+  const isResetDay = (date: Date) => date.getDay() === resetDay;
+  // 주 마지막일 요일 = (resetDay + 6) % 7
+  const lastDayOfWeek = (resetDay + 6) % 7;
+  const isWeekEnd = (date: Date) => date.getDay() === lastDayOfWeek;
+
   return (
     <div className="relative" ref={ref}>
       {/* 선택 버튼 */}
@@ -93,7 +100,7 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
         onClick={() => setOpen(!open)}
         className="w-full max-w-sm p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-left flex items-center justify-between hover:border-indigo-400 transition-colors"
       >
-        <span className="text-gray-800 dark:text-gray-200">{formatWeekLabel(value)}</span>
+        <span className="text-gray-800 dark:text-gray-200">{formatWeekLabel(value, resetDay)}</span>
         <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
         </svg>
@@ -137,7 +144,8 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
 
               const isToday = isSameDay(date, today);
               const inWeek = isInSelectedWeek(date);
-              const isWed = date.getDay() === 3;
+              const isStart = isResetDay(date);
+              const isEnd = isWeekEnd(date);
               const isSun = date.getDay() === 0;
               const isSat = date.getDay() === 6;
 
@@ -147,9 +155,9 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
                   onClick={() => handleDayClick(date)}
                   className={`relative h-9 text-xs font-medium rounded transition-colors
                     ${inWeek
-                      ? isWed
+                      ? isStart
                         ? 'bg-indigo-600 text-white rounded-l-lg'
-                        : date.getDay() === 2
+                        : isEnd
                           ? 'bg-indigo-100 text-indigo-700 rounded-r-lg'
                           : 'bg-indigo-100 text-indigo-700 rounded-none'
                       : 'hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -174,7 +182,7 @@ export default function WeekPicker({ value, onChange }: WeekPickerProps) {
           {/* 선택된 주 표시 */}
           <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700 text-center">
             <span className="text-xs text-gray-600 dark:text-gray-400">
-              선택: {formatWeekLabel(value)}
+              선택: {formatWeekLabel(value, resetDay)}
             </span>
           </div>
         </div>

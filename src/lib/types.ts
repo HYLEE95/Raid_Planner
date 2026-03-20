@@ -1,17 +1,20 @@
-export type ClassType = '근딜' | '원딜' | '호법성' | '치유성';
+export type ClassType = '근딜' | '원딜' | '호법성' | '치유성' | '세가' | '세바' | '딜러';
 
 // 레이드 타입
-export type RaidType = '루드라';
+export type RaidType = '루드라' | '브리레흐';
 
 export interface RaidConfig {
   name: RaidType;
   label: string;
-  teamsPerRaid: number;       // 팀 수
+  resetDay: number;           // 주간 초기화 요일 (3=수, 4=목)
+  teamsPerRaid: number;       // 팀 수 (루드라: 2, 브리레흐: 1)
   membersPerTeam: number;     // 팀당 인원
+  minPartySize?: number;      // 최소 파티 인원 (브리레흐: 4)
+  maxPartySize?: number;      // 최대 파티 인원 (브리레흐: 8)
   durationHours: number;      // 소요 시간
   maxBots: number;            // 최대 봇 수
-  // 팀별 서포트 규칙
-  teamRules: {
+  // 팀별 서포트 규칙 (루드라용)
+  teamRules?: {
     team1: { supportType: ('치유성' | '호법성')[]; exactCount: number };
     team2: { supportType: ('치유성')[]; exactCount: number };
   };
@@ -21,6 +24,7 @@ export const RAID_CONFIGS: Record<RaidType, RaidConfig> = {
   '루드라': {
     name: '루드라',
     label: '루드라',
+    resetDay: 3, // 수요일
     teamsPerRaid: 2,
     membersPerTeam: 4,
     durationHours: 1,
@@ -30,9 +34,20 @@ export const RAID_CONFIGS: Record<RaidType, RaidConfig> = {
       team2: { supportType: ['치유성'], exactCount: 1 },
     },
   },
+  '브리레흐': {
+    name: '브리레흐',
+    label: '브리레흐 1-3관문',
+    resetDay: 4, // 목요일
+    teamsPerRaid: 1,
+    membersPerTeam: 8,
+    minPartySize: 4,
+    maxPartySize: 8,
+    durationHours: 1,
+    maxBots: 0,
+  },
 };
 
-export const RAID_TYPES: RaidType[] = ['루드라'];
+export const RAID_TYPES: RaidType[] = ['루드라', '브리레흐'];
 
 export interface Character {
   id: string;
@@ -59,7 +74,7 @@ export interface TimeSlot {
 export interface Availability {
   id: string;
   owner_id: string;
-  week_start: string; // 해당 주 수요일 YYYY-MM-DD
+  week_start: string; // 해당 주 시작일 YYYY-MM-DD
   slots: TimeSlot[];
 }
 
@@ -88,7 +103,7 @@ export interface Team {
 export interface RaidGroup {
   id: number;
   team1: Team;
-  team2: Team;
+  team2?: Team;  // optional for 브리레흐 (단일 파티)
   avgCombatPower: number;
   botCount: number;
   timeSlot: TimeSlot;
@@ -117,9 +132,13 @@ export interface DBCharacterProfile {
   characters: {
     nickname: string;
     class_type: ClassType;
-    combat_power: number;
-    can_clear_raid: boolean;
-    is_underpowered: boolean;
+    combat_power?: number;
+    can_clear_raid?: boolean;
+    is_underpowered?: boolean;
+    // 브리레흐 전용
+    has_destruction_robe?: boolean;
+    has_soul_weapon?: boolean;
+    desired_clears?: number;
   }[];
   created_at: string;
 }
@@ -132,9 +151,13 @@ export interface DBRegistration {
   characters: {
     nickname: string;
     class_type: ClassType;
-    combat_power: number;
-    can_clear_raid: boolean;
-    is_underpowered: boolean;
+    combat_power?: number;
+    can_clear_raid?: boolean;
+    is_underpowered?: boolean;
+    // 브리레흐 전용
+    has_destruction_robe?: boolean;
+    has_soul_weapon?: boolean;
+    desired_clears?: number;
   }[];
   week_start: string;
   time_slots: TimeSlot[];

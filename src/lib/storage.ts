@@ -1,5 +1,6 @@
 import { getSupabase, isSupabaseConfigured } from './supabase';
-import type { DBRegistration, TimeSlot, ConfirmedRaid, DBCharacterProfile } from './types';
+import type { DBRegistration, TimeSlot, ConfirmedRaid, DBCharacterProfile, RaidType } from './types';
+import { RAID_CONFIGS } from './types';
 
 const STORAGE_KEY = 'raid-planner-registrations';
 const CONFIRMED_KEY = 'raid-planner-confirmed';
@@ -191,18 +192,27 @@ export async function deleteCharacterProfile(id: string): Promise<void> {
 }
 
 export function getWednesday(date: Date): Date {
+  return getWeekStart(date, 3);
+}
+
+// resetDay 기준으로 주 시작일 구하기 (3=수, 4=목 등)
+export function getWeekStart(date: Date, resetDay: number): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   const day = d.getDay(); // 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토
-  // 수요일(3)을 기준으로 해당 주의 수요일 찾기
   let diff: number;
-  if (day >= 3) {
-    diff = day - 3; // 수~토: 이번 주 수요일
+  if (day >= resetDay) {
+    diff = day - resetDay;
   } else {
-    diff = day + 4; // 일~화: 지난 주 수요일
+    diff = day + (7 - resetDay);
   }
   d.setDate(d.getDate() - diff);
   return d;
+}
+
+export function getWeekStartForRaid(date: Date, raidType: RaidType): Date {
+  const config = RAID_CONFIGS[raidType];
+  return getWeekStart(date, config.resetDay);
 }
 
 export function formatDate(date: Date): string {
@@ -240,36 +250,35 @@ export function generateId(): string {
   return crypto.randomUUID();
 }
 
-// "mm월 n주차 dd일 (수)" 형식으로 주차 표기
-export function formatWeekLabel(weekStartStr: string): string {
+// "mm월 n주차 dd일 (요일)" 형식으로 주차 표기
+export function formatWeekLabel(weekStartStr: string, resetDay: number = 3): string {
   const d = new Date(weekStartStr + 'T00:00:00');
   const month = d.getMonth() + 1;
   const day = d.getDate();
+  const dayName = DAY_NAMES[d.getDay()];
 
-  // n주차: 해당 월의 첫째 수요일부터 카운트
+  // n주차: 해당 월의 첫째 resetDay부터 카운트
   const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
   const fDay = firstOfMonth.getDay();
-  const toWed = fDay <= 3 ? 3 - fDay : 7 - fDay + 3;
-  const firstWed = new Date(firstOfMonth);
-  firstWed.setDate(firstOfMonth.getDate() + toWed);
+  const toResetDay = fDay <= resetDay ? resetDay - fDay : 7 - fDay + resetDay;
+  const firstResetDay = new Date(firstOfMonth);
+  firstResetDay.setDate(firstOfMonth.getDate() + toResetDay);
 
   let weekNum: number;
-  if (d.getTime() < firstWed.getTime()) {
-    // 해당 월의 첫 수요일 이전이면 이전 달의 마지막 주차
-    // 이전 달 기준으로 계산
+  if (d.getTime() < firstResetDay.getTime()) {
     const prevMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);
     const pDay = prevMonth.getDay();
-    const toWedP = pDay <= 3 ? 3 - pDay : 7 - pDay + 3;
-    const firstWedPrev = new Date(prevMonth);
-    firstWedPrev.setDate(prevMonth.getDate() + toWedP);
-    weekNum = Math.floor((d.getTime() - firstWedPrev.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+    const toResetDayP = pDay <= resetDay ? resetDay - pDay : 7 - pDay + resetDay;
+    const firstResetDayPrev = new Date(prevMonth);
+    firstResetDayPrev.setDate(prevMonth.getDate() + toResetDayP);
+    weekNum = Math.floor((d.getTime() - firstResetDayPrev.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
     const prevMonthNum = prevMonth.getMonth() + 1;
-    return `${prevMonthNum}월 ${weekNum}주차 ${day}일 (수)`;
+    return `${prevMonthNum}월 ${weekNum}주차 ${day}일 (${dayName})`;
   } else {
-    weekNum = Math.floor((d.getTime() - firstWed.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+    weekNum = Math.floor((d.getTime() - firstResetDay.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
   }
 
-  return `${month}월 ${weekNum}주차 ${day}일 (수)`;
+  return `${month}월 ${weekNum}주차 ${day}일 (${dayName})`;
 }
 
 export function timeSlotsOverlap(a: TimeSlot, b: TimeSlot): boolean {

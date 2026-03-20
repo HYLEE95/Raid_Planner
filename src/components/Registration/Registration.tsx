@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  getWednesday,
+  getWeekStartForRaid,
   formatDate,
   getWeekDates,
   getDayName,
@@ -17,13 +17,17 @@ import WeekPicker from '../WeekPicker/WeekPicker';
 import type { ClassType, TimeSlot, DBRegistration, DBCharacterProfile, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
 
-const CLASS_TYPES: ClassType[] = ['근딜', '원딜', '호법성', '치유성'];
+const RUDRA_CLASS_TYPES: ClassType[] = ['근딜', '원딜', '호법성', '치유성'];
+const BRI_CLASS_TYPES: ClassType[] = ['세가', '세바', '딜러'];
 
-const CLASS_COLORS: Record<ClassType, string> = {
+const CLASS_COLORS: Record<string, string> = {
   '근딜': 'bg-red-100 text-red-800 border-red-300',
   '원딜': 'bg-blue-100 text-blue-800 border-blue-300',
   '호법성': 'bg-yellow-100 text-yellow-800 border-yellow-300',
   '치유성': 'bg-green-100 text-green-800 border-green-300',
+  '세가': 'bg-purple-100 text-purple-800 border-purple-300',
+  '세바': 'bg-teal-100 text-teal-800 border-teal-300',
+  '딜러': 'bg-rose-100 text-rose-800 border-rose-300',
 };
 
 interface CharacterForm {
@@ -32,7 +36,11 @@ interface CharacterForm {
   combat_power: number;
   can_clear_raid: boolean;
   is_underpowered: boolean;
-  participating: boolean; // 이번 레이드 참여 여부
+  participating: boolean;
+  // 브리레흐 전용
+  has_destruction_robe: boolean;
+  has_soul_weapon: boolean;
+  desired_clears: number;
 }
 
 interface DateTimeSelection {
@@ -40,6 +48,18 @@ interface DateTimeSelection {
   allDay: boolean;
   timeRanges: { start: string; end: string }[];
 }
+
+const defaultChar = (raidType?: RaidType | null): CharacterForm => ({
+  nickname: '',
+  class_type: raidType === '브리레흐' ? '딜러' : '근딜',
+  combat_power: 0,
+  can_clear_raid: false,
+  is_underpowered: false,
+  participating: true,
+  has_destruction_robe: false,
+  has_soul_weapon: false,
+  desired_clears: 3,
+});
 
 export default function Registration() {
   const location = useLocation();
@@ -49,11 +69,9 @@ export default function Registration() {
   const [editId, setEditId] = useState<string | null>(null);
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
   const [ownerName, setOwnerName] = useState('');
-  const [characters, setCharacters] = useState<CharacterForm[]>([
-    { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false, participating: true },
-  ]);
+  const [characters, setCharacters] = useState<CharacterForm[]>([defaultChar()]);
   const [selectedWeek, setSelectedWeek] = useState(() => {
-    return formatDate(getWednesday(new Date()));
+    return formatDate(getWeekStartForRaid(new Date(), '루드라'));
   });
   const [dateSelections, setDateSelections] = useState<DateTimeSelection[]>([]);
   const [useBatchTime, setUseBatchTime] = useState(false);
@@ -64,6 +82,21 @@ export default function Registration() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [ownerProfiles, setOwnerProfiles] = useState<DBCharacterProfile[]>([]);
+
+  const isBri = selectedRaid === '브리레흐';
+  const classTypes = isBri ? BRI_CLASS_TYPES : RUDRA_CLASS_TYPES;
+  const resetDay = selectedRaid ? RAID_CONFIGS[selectedRaid].resetDay : 3;
+
+  // 레이드 변경 시 주차 재계산
+  useEffect(() => {
+    if (selectedRaid) {
+      setSelectedWeek(formatDate(getWeekStartForRaid(new Date(), selectedRaid)));
+      setCharacters([defaultChar(selectedRaid)]);
+      setDateSelections([]);
+      setEditId(null);
+      setOwnerName('');
+    }
+  }, [selectedRaid]);
 
   // 수정 모드: 전달된 데이터로 폼 초기화
   useEffect(() => {
@@ -76,10 +109,13 @@ export default function Registration() {
       editData.characters.map(c => ({
         nickname: c.nickname,
         class_type: c.class_type,
-        combat_power: c.combat_power,
-        can_clear_raid: c.can_clear_raid,
+        combat_power: c.combat_power ?? 0,
+        can_clear_raid: c.can_clear_raid ?? false,
         is_underpowered: c.is_underpowered ?? false,
         participating: true,
+        has_destruction_robe: c.has_destruction_robe ?? false,
+        has_soul_weapon: c.has_soul_weapon ?? false,
+        desired_clears: c.desired_clears ?? 3,
       }))
     );
     // 시간대 복원
@@ -90,12 +126,10 @@ export default function Registration() {
     }
     setDateSelections(
       Array.from(dateMap.entries()).map(([date, timeRanges]) => {
-        // 00:00~23:30이면 시간 무관으로 복원
         const isAllDay = timeRanges.length === 1 && timeRanges[0].start === '00:00' && timeRanges[0].end === '23:30';
         return { date, allDay: isAllDay, timeRanges };
       })
     );
-    // location.state 클리어 (뒤로가기 시 재로드 방지)
     window.history.replaceState({}, '');
   }, [editData]);
 
@@ -118,10 +152,13 @@ export default function Registration() {
         setCharacters(existingReg.characters.map(c => ({
           nickname: c.nickname,
           class_type: c.class_type,
-          combat_power: c.combat_power,
-          can_clear_raid: c.can_clear_raid,
+          combat_power: c.combat_power ?? 0,
+          can_clear_raid: c.can_clear_raid ?? false,
           is_underpowered: c.is_underpowered ?? false,
           participating: true,
+          has_destruction_robe: c.has_destruction_robe ?? false,
+          has_soul_weapon: c.has_soul_weapon ?? false,
+          desired_clears: c.desired_clears ?? 3,
         })));
         // 시간대 복원
         const dateMap = new Map<string, { start: string; end: string }[]>();
@@ -145,10 +182,13 @@ export default function Registration() {
             .map(c => ({
               nickname: c.nickname,
               class_type: c.class_type,
-              combat_power: c.combat_power,
-              can_clear_raid: c.can_clear_raid,
+              combat_power: c.combat_power ?? 0,
+              can_clear_raid: c.can_clear_raid ?? false,
               is_underpowered: c.is_underpowered ?? false,
               participating: false,
+              has_destruction_robe: c.has_destruction_robe ?? false,
+              has_soul_weapon: c.has_soul_weapon ?? false,
+              desired_clears: c.desired_clears ?? 3,
             }));
           if (extraChars.length > 0) {
             setCharacters(prev => [...prev, ...extraChars]);
@@ -167,10 +207,13 @@ export default function Registration() {
       setCharacters(profile.characters.map(c => ({
         nickname: c.nickname,
         class_type: c.class_type,
-        combat_power: c.combat_power,
-        can_clear_raid: c.can_clear_raid,
+        combat_power: c.combat_power ?? 0,
+        can_clear_raid: c.can_clear_raid ?? false,
         is_underpowered: c.is_underpowered ?? false,
         participating: true,
+        has_destruction_robe: c.has_destruction_robe ?? false,
+        has_soul_weapon: c.has_soul_weapon ?? false,
+        desired_clears: c.desired_clears ?? 3,
       })));
     }
   };
@@ -182,10 +225,7 @@ export default function Registration() {
   const timeSlots = useMemo(() => generateTimeSlots(), []);
 
   const addCharacter = () => {
-    setCharacters([
-      ...characters,
-      { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false, participating: true },
-    ]);
+    setCharacters([...characters, defaultChar(selectedRaid)]);
   };
 
   const removeCharacter = (idx: number) => {
@@ -196,17 +236,18 @@ export default function Registration() {
   const updateCharacter = (idx: number, field: keyof CharacterForm, value: any) => {
     const updated = [...characters];
     (updated[idx] as any)[field] = value;
-    // 상호 배타: 하나 체크하면 다른 하나 해제
-    if (field === 'can_clear_raid' && value === true) {
-      updated[idx].is_underpowered = false;
-    }
-    if (field === 'is_underpowered' && value === true) {
-      updated[idx].can_clear_raid = false;
-    }
-    // 치유성/호법성으로 변경 시 둘 다 해제
-    if (field === 'class_type' && (value === '치유성' || value === '호법성')) {
-      updated[idx].can_clear_raid = false;
-      updated[idx].is_underpowered = false;
+    // 루드라 상호 배타 로직
+    if (!isBri) {
+      if (field === 'can_clear_raid' && value === true) {
+        updated[idx].is_underpowered = false;
+      }
+      if (field === 'is_underpowered' && value === true) {
+        updated[idx].can_clear_raid = false;
+      }
+      if (field === 'class_type' && (value === '치유성' || value === '호법성')) {
+        updated[idx].can_clear_raid = false;
+        updated[idx].is_underpowered = false;
+      }
     }
     setCharacters(updated);
   };
@@ -276,7 +317,9 @@ export default function Registration() {
     if (!ownerName.trim()) return false;
     const activeChars = characters.filter(c => c.participating);
     if (activeChars.length === 0) return false;
-    if (activeChars.some(c => !c.nickname.trim() || c.combat_power <= 0)) return false;
+    if (activeChars.some(c => !c.nickname.trim())) return false;
+    // 루드라: 전투력 필수
+    if (!isBri && activeChars.some(c => (c.combat_power ?? 0) <= 0)) return false;
     if (dateSelections.length === 0) return false;
     if (useBatchTime) {
       if (!batchAllDay && batchTimeRanges.length === 0) return false;
@@ -285,7 +328,7 @@ export default function Registration() {
       if (dateSelections.some(d => !d.allDay && d.timeRanges.length === 0)) return false;
       if (dateSelections.some(d => !d.allDay && d.timeRanges.some(tr => tr.start >= tr.end))) return false;
     }
-    // 닉네임 중복 체크 (참여 캐릭터만)
+    // 닉네임 중복 체크
     const nicknames = activeChars.map(c => c.nickname.trim());
     if (new Set(nicknames).size !== nicknames.length) return false;
     return true;
@@ -328,22 +371,32 @@ export default function Registration() {
         }
       }
 
-      // 수정 모드: 기존 데이터 삭제 후 새로 저장
       if (existingId) {
         await deleteRegistration(existingId);
       }
+
+      const charData = activeChars.map(c => {
+        const base: any = {
+          nickname: c.nickname.trim(),
+          class_type: c.class_type,
+        };
+        if (isBri) {
+          base.has_destruction_robe = c.has_destruction_robe;
+          base.has_soul_weapon = c.has_soul_weapon;
+          base.desired_clears = c.desired_clears;
+        } else {
+          base.combat_power = c.combat_power;
+          base.can_clear_raid = c.can_clear_raid;
+          base.is_underpowered = c.is_underpowered;
+        }
+        return base;
+      });
 
       const registration: DBRegistration = {
         id: existingId || generateId(),
         owner_name: ownerName.trim(),
         raid_type: selectedRaid!,
-        characters: activeChars.map(c => ({
-          nickname: c.nickname.trim(),
-          class_type: c.class_type,
-          combat_power: c.combat_power,
-          can_clear_raid: c.can_clear_raid,
-          is_underpowered: c.is_underpowered,
-        })),
+        characters: charData,
         week_start: selectedWeek,
         time_slots: timeSlotList,
         created_at: existingId ? (editData?.created_at || new Date().toISOString()) : new Date().toISOString(),
@@ -355,17 +408,27 @@ export default function Registration() {
       try {
         const existingProfiles = await getCharacterProfiles(selectedRaid!);
         const existing = existingProfiles.find(p => p.owner_name === ownerName.trim());
-        const profile: import('../../lib/types').DBCharacterProfile = {
+        const profileChars = characters.map(c => {
+          const base: any = {
+            nickname: c.nickname.trim(),
+            class_type: c.class_type,
+          };
+          if (isBri) {
+            base.has_destruction_robe = c.has_destruction_robe;
+            base.has_soul_weapon = c.has_soul_weapon;
+            base.desired_clears = c.desired_clears;
+          } else {
+            base.combat_power = c.combat_power;
+            base.can_clear_raid = c.can_clear_raid;
+            base.is_underpowered = c.is_underpowered;
+          }
+          return base;
+        });
+        const profile: DBCharacterProfile = {
           id: existing?.id || generateId(),
           owner_name: ownerName.trim(),
           raid_type: selectedRaid!,
-          characters: characters.map(c => ({
-            nickname: c.nickname.trim(),
-            class_type: c.class_type,
-            combat_power: c.combat_power,
-            can_clear_raid: c.can_clear_raid,
-            is_underpowered: c.is_underpowered,
-          })),
+          characters: profileChars,
           created_at: new Date().toISOString(),
         };
         await saveCharacterProfile(profile);
@@ -378,7 +441,6 @@ export default function Registration() {
       setTimeout(() => setSaved(false), 5000);
 
       if (editId) {
-        // 수정 완료 후 홈으로 이동
         setEditId(null);
         navigate('/raid-compose');
         return;
@@ -386,9 +448,7 @@ export default function Registration() {
 
       // 폼 리셋
       setOwnerName('');
-      setCharacters([
-        { nickname: '', class_type: '근딜', combat_power: 0, can_clear_raid: false, is_underpowered: false, participating: true },
-      ]);
+      setCharacters([defaultChar(selectedRaid)]);
       setDateSelections([]);
     } catch (err) {
       alert('저장 실패: ' + (err as Error).message);
@@ -447,6 +507,7 @@ export default function Registration() {
             setSelectedWeek(v);
             setDateSelections([]);
           }}
+          resetDay={resetDay}
         />
       </section>
 
@@ -537,14 +598,14 @@ export default function Registration() {
                 <div>
                   <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">직업군</label>
                   <div className="flex gap-1 flex-wrap">
-                    {CLASS_TYPES.map(ct => (
+                    {classTypes.map(ct => (
                       <button
                         key={ct}
                         onClick={() => updateCharacter(idx, 'class_type', ct)}
                         className={`px-2 py-1 text-xs rounded border transition-colors ${
                           char.class_type === ct
-                            ? CLASS_COLORS[ct] + ' font-bold'
-                            : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-100'
+                            ? (CLASS_COLORS[ct] || '') + ' font-bold'
+                            : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
                         }`}
                       >
                         {ct}
@@ -553,54 +614,98 @@ export default function Registration() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">전투력 (K)</label>
-                  <input
-                    type="number"
-                    value={char.combat_power || ''}
-                    onChange={e =>
-                      updateCharacter(idx, 'combat_power', parseFloat(e.target.value) || 0)
-                    }
-                    placeholder="예: 150"
-                    min={0}
-                    step={0.1}
-                    className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
-                  />
-                </div>
+                {/* 루드라 전용: 전투력 */}
+                {!isBri && (
+                  <div>
+                    <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">전투력 (K)</label>
+                    <input
+                      type="number"
+                      value={char.combat_power || ''}
+                      onChange={e =>
+                        updateCharacter(idx, 'combat_power', parseFloat(e.target.value) || 0)
+                      }
+                      placeholder="예: 150"
+                      min={0}
+                      step={0.1}
+                      className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                    />
+                  </div>
+                )}
 
-                <div className="flex flex-col gap-2 justify-end">
-                  {(() => {
-                    const isSupport = char.class_type === '치유성' || char.class_type === '호법성';
-                    return (
-                      <>
-                        <label className={`flex items-center gap-2 ${isSupport || char.is_underpowered ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-                          <input
-                            type="checkbox"
-                            checked={isSupport ? false : char.can_clear_raid}
-                            disabled={isSupport || char.is_underpowered}
-                            onChange={e =>
-                              updateCharacter(idx, 'can_clear_raid', e.target.checked)
-                            }
-                            className="w-4 h-4 text-indigo-600"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">공팟 가도 상관 없음</span>
-                        </label>
-                        <label className={`flex items-center gap-2 ${isSupport || char.can_clear_raid ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-                          <input
-                            type="checkbox"
-                            checked={isSupport ? false : char.is_underpowered}
-                            disabled={isSupport || char.can_clear_raid}
-                            onChange={e =>
-                              updateCharacter(idx, 'is_underpowered', e.target.checked)
-                            }
-                            className="w-4 h-4 text-orange-500"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">공팟 스펙 미달(저스펙)</span>
-                        </label>
-                      </>
-                    );
-                  })()}
-                </div>
+                {/* 루드라 전용: 공팟/저스펙 체크 */}
+                {!isBri && (
+                  <div className="flex flex-col gap-2 justify-end">
+                    {(() => {
+                      const isSupport = char.class_type === '치유성' || char.class_type === '호법성';
+                      return (
+                        <>
+                          <label className={`flex items-center gap-2 ${isSupport || char.is_underpowered ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+                            <input
+                              type="checkbox"
+                              checked={isSupport ? false : char.can_clear_raid}
+                              disabled={isSupport || char.is_underpowered}
+                              onChange={e =>
+                                updateCharacter(idx, 'can_clear_raid', e.target.checked)
+                              }
+                              className="w-4 h-4 text-indigo-600"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">공팟 가도 상관 없음</span>
+                          </label>
+                          <label className={`flex items-center gap-2 ${isSupport || char.can_clear_raid ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+                            <input
+                              type="checkbox"
+                              checked={isSupport ? false : char.is_underpowered}
+                              disabled={isSupport || char.can_clear_raid}
+                              onChange={e =>
+                                updateCharacter(idx, 'is_underpowered', e.target.checked)
+                              }
+                              className="w-4 h-4 text-orange-500"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-300">공팟 스펙 미달(저스펙)</span>
+                          </label>
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
+                {/* 브리레흐 전용: 파멸의 로브, 소울 무기, 희망 클리어 횟수 */}
+                {isBri && (
+                  <>
+                    <div className="flex flex-col gap-2 justify-end">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={char.has_destruction_robe}
+                          onChange={e => updateCharacter(idx, 'has_destruction_robe', e.target.checked)}
+                          className="w-4 h-4 text-purple-600"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">파멸의 로브 보유</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={char.has_soul_weapon}
+                          onChange={e => updateCharacter(idx, 'has_soul_weapon', e.target.checked)}
+                          className="w-4 h-4 text-amber-600"
+                        />
+                        <span className="text-sm text-gray-700 dark:text-gray-300">소울 무기 보유</span>
+                      </label>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">희망 클리어 횟수</label>
+                      <select
+                        value={char.desired_clears}
+                        onChange={e => updateCharacter(idx, 'desired_clears', parseInt(e.target.value))}
+                        className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+                      >
+                        {Array.from({ length: 11 }, (_, i) => (
+                          <option key={i} value={i}>{i}회</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -643,7 +748,7 @@ export default function Registration() {
                 onChange={() => setUseBatchTime(!useBatchTime)}
                 className="w-4 h-4 text-indigo-600"
               />
-              <span className="text-sm font-semibold text-indigo-700">
+              <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
                 시간 일괄 설정
               </span>
             </label>
@@ -652,7 +757,7 @@ export default function Registration() {
               <div className="p-3 border-2 border-indigo-300 dark:border-indigo-700 rounded-lg bg-indigo-50 dark:bg-indigo-900/30">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-indigo-700">일괄 설정</span>
+                    <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">일괄 설정</span>
                     <label className="flex items-center gap-1.5 cursor-pointer">
                       <input
                         type="checkbox"
@@ -724,7 +829,7 @@ export default function Registration() {
           </div>
         )}
 
-        {/* 개별 날짜 시간대 선택 (일괄 설정 미사용 시에만 표시) */}
+        {/* 개별 날짜 시간대 선택 */}
         {!useBatchTime && dateSelections
           .sort((a, b) => a.date.localeCompare(b.date))
           .map(ds => {

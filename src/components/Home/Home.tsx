@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  getWednesday,
+  getWeekStartForRaid,
   formatDate,
   getRegistrationsByWeek,
   subscribeToRegistrations,
@@ -11,6 +11,7 @@ import {
   generateId,
 } from '../../lib/storage';
 import { solveRaidComposition } from '../../lib/raidSolver';
+import { solveBriRaidComposition } from '../../lib/raidSolver';
 import RaidResult from '../RaidResult/RaidResult';
 import WeekPicker from '../WeekPicker/WeekPicker';
 import type { DBRegistration, RaidComposition, RaidType } from '../../lib/types';
@@ -18,10 +19,10 @@ import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
 
 export default function Home() {
   const navigate = useNavigate();
-  const [selectedWeek, setSelectedWeek] = useState(() => {
-    return formatDate(getWednesday(new Date()));
-  });
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState(() => {
+    return formatDate(getWeekStartForRaid(new Date(), '루드라'));
+  });
   const [registrations, setRegistrations] = useState<DBRegistration[]>([]);
   const [compositions, setCompositions] = useState<RaidComposition[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,7 +57,9 @@ export default function Home() {
     setLoading(true);
     setInsufficientMsg('');
     setTimeout(() => {
-      const results = solveRaidComposition(registrations, selectedRaid);
+      const results = selectedRaid === '브리레흐'
+        ? solveBriRaidComposition(registrations)
+        : solveRaidComposition(registrations, selectedRaid);
       setCompositions(results);
       if (results.length === 0 && registrations.length > 0) {
         setInsufficientMsg('인원이 부족하여 공격대 배치가 불가합니다.');
@@ -109,6 +112,7 @@ export default function Home() {
               key={rt}
               onClick={() => {
                 setSelectedRaid(rt);
+                setSelectedWeek(formatDate(getWeekStartForRaid(new Date(), rt)));
                 setCompositions([]);
               }}
               className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors ${
@@ -136,6 +140,7 @@ export default function Home() {
                   setSelectedWeek(v);
                   setCompositions([]);
                 }}
+                resetDay={RAID_CONFIGS[selectedRaid].resetDay}
               />
             </div>
             <button
@@ -218,7 +223,11 @@ export default function Home() {
                     <div>
                       <span className="font-medium text-gray-800 dark:text-gray-200">{reg.owner_name}</span>
                       <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                        캐릭터: {reg.characters.map(c => `${c.nickname}(${c.class_type}/${c.combat_power}K)`).join(', ')}
+                        캐릭터: {reg.characters.map(c =>
+                          selectedRaid === '브리레흐'
+                            ? `${c.nickname}(${c.class_type})`
+                            : `${c.nickname}(${c.class_type}/${c.combat_power}K)`
+                        ).join(', ')}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -262,6 +271,7 @@ export default function Home() {
               selectedIndex={0}
               onSelectIndex={() => {}}
               onConfirm={handleConfirm}
+              raidType={selectedRaid}
             />
           )}
         </>
