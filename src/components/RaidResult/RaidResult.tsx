@@ -194,11 +194,13 @@ function MemberCard({
   raidType,
   swapOptions,
   onSwap,
+  onRemove,
 }: {
   member: RaidMember;
   raidType?: RaidType;
   swapOptions?: SwapOption[];
   onSwap?: (value: string) => void;
+  onRemove?: () => void;
 }) {
   const [showSwap, setShowSwap] = useState(false);
   const isBot = 'isBot' in member && member.isBot;
@@ -263,6 +265,15 @@ function MemberCard({
             변경
           </button>
         )}
+        {onRemove && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            className="text-[10px] px-1.5 py-0.5 rounded border border-red-300 dark:border-red-600 text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 shrink-0"
+            title="파티원 삭제"
+          >
+            삭제
+          </button>
+        )}
       </div>
       {showSwap && groupedOptions.length > 0 && (
         <select
@@ -295,12 +306,16 @@ function TeamCard({
   raidType,
   swapOptionsForMember,
   onSwapMember,
+  onAddMember,
+  onRemoveMember,
 }: {
   team: { members: RaidMember[]; avgCombatPower: number };
   label: string;
   raidType?: RaidType;
   swapOptionsForMember?: (memberIdx: number) => SwapOption[];
   onSwapMember?: (memberIdx: number, value: string) => void;
+  onAddMember?: () => void;
+  onRemoveMember?: (memberIdx: number) => void;
 }) {
   const isBri = raidType === '브리레흐';
   return (
@@ -326,8 +341,20 @@ function TeamCard({
             raidType={raidType}
             swapOptions={swapOptionsForMember ? swapOptionsForMember(idx) : undefined}
             onSwap={onSwapMember ? (val) => onSwapMember(idx, val) : undefined}
+            onRemove={onRemoveMember ? () => onRemoveMember(idx) : undefined}
           />
         ))}
+        {isBri && onAddMember && (
+          <button
+            onClick={onAddMember}
+            className="w-full py-1.5 rounded border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-400 transition-colors flex items-center justify-center gap-1 text-xs font-medium"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            파티원 추가
+          </button>
+        )}
       </div>
     </div>
   );
@@ -343,6 +370,8 @@ function RaidGroupCard({
   onTimeChange,
   onSwapMember,
   onDelete,
+  onAddMember,
+  onRemoveMember,
 }: {
   raid: RaidGroup;
   raidType?: RaidType;
@@ -353,6 +382,8 @@ function RaidGroupCard({
   onTimeChange?: (startTime: string) => void;
   onSwapMember?: (team: 'team1' | 'team2', memberIdx: number, value: string) => void;
   onDelete?: () => void;
+  onAddMember?: () => void;
+  onRemoveMember?: (memberIdx: number) => void;
 }) {
   const [showAllSlots, setShowAllSlots] = useState(false);
   const isBri = raidType === '브리레흐';
@@ -470,6 +501,8 @@ function RaidGroupCard({
             raidType={raidType}
             swapOptionsForMember={onSwapMember ? (mIdx) => getSwapOptions('team1', mIdx) : undefined}
             onSwapMember={onSwapMember ? (mIdx, val) => onSwapMember('team1', mIdx, val) : undefined}
+            onAddMember={onAddMember}
+            onRemoveMember={onRemoveMember}
           />
         ) : (
           <>
@@ -794,6 +827,54 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
     updateComp(compIdx, { ...comp, raids: [...comp.raids, newRaid] });
   };
 
+  // 브리레흐 파티원 추가
+  const handleAddMemberToParty = (compIdx: number, raidId: number) => {
+    if (!onUpdate) return;
+    const comp = compositions[compIdx];
+    const raidObj = comp.raids.find(r => r.id === raidId);
+    if (!raidObj) return;
+
+    const existingBots = raidObj.team1.members.filter(m => 'isBot' in m && m.isBot).length;
+    const botIdx = existingBots + 1;
+    const bot: BotCharacter = {
+      isBot: true,
+      nickname: `공방인원${botIdx}`,
+      class_type: '딜러',
+      combat_power: 0,
+    };
+
+    const updatedRaids = comp.raids.map(r => {
+      if (r.id !== raidId) return r;
+      const newMembers = [...r.team1.members, bot];
+      return recalcRaidStats({ ...r, team1: { ...r.team1, members: newMembers } });
+    });
+    updateComp(compIdx, { ...comp, raids: updatedRaids });
+  };
+
+  // 브리레흐 파티원 삭제
+  const handleRemoveMemberFromParty = (compIdx: number, raidId: number, memberIdx: number) => {
+    if (!onUpdate) return;
+    const comp = compositions[compIdx];
+    const raidObj = comp.raids.find(r => r.id === raidId);
+    if (!raidObj) return;
+
+    const member = raidObj.team1.members[memberIdx];
+    const isBot = 'isBot' in member && member.isBot;
+
+    const updatedRaids = comp.raids.map(r => {
+      if (r.id !== raidId) return r;
+      const newMembers = r.team1.members.filter((_, i) => i !== memberIdx);
+      return recalcRaidStats({ ...r, team1: { ...r.team1, members: newMembers } });
+    });
+
+    let newExcluded = comp.excludedCharacters;
+    if (!isBot) {
+      newExcluded = [...comp.excludedCharacters, memberToExcluded(member)];
+    }
+
+    updateComp(compIdx, { ...comp, raids: updatedRaids, excludedCharacters: newExcluded });
+  };
+
   // 수동 추가 공격대 삭제
   const handleDeleteRaid = (compIdx: number, raidId: number) => {
     const comp = compositions[compIdx];
@@ -881,6 +962,8 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
                       onTimeChange={onUpdate ? (time) => handleTimeChange(idx, raid.id, time) : undefined}
                       onSwapMember={onUpdate ? (team, mIdx, val) => handleSwap(idx, raid.id, team, mIdx, val) : undefined}
                       onDelete={onUpdate && raid.isManual ? () => handleDeleteRaid(idx, raid.id) : undefined}
+                      onAddMember={onUpdate && isBri ? () => handleAddMemberToParty(idx, raid.id) : undefined}
+                      onRemoveMember={onUpdate && isBri ? (mIdx) => handleRemoveMemberFromParty(idx, raid.id, mIdx) : undefined}
                     />
                   ))}
                 </div>

@@ -249,13 +249,17 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
     if (t2Real.length >= 3 && !t2Real.some(m => m.class_type === '근딜')) score += 5000;
   }
 
-  // 호법성 2명 동일 팀 매우 큰 패널티
+  // 동일 서포트 2명 동일 팀 매우 큰 패널티 (호법성+호법성, 치유성+치유성 비선호)
   for (const raid of comp.raids) {
     const t1Tanks = raid.team1.members.filter(m => m.class_type === '호법성').length;
+    const t1Healers = raid.team1.members.filter(m => m.class_type === '치유성').length;
     if (t1Tanks >= 2) score += 100000;
+    if (t1Healers >= 2) score += 100000;
     if (raid.team2) {
       const t2Tanks = raid.team2.members.filter(m => m.class_type === '호법성').length;
+      const t2Healers = raid.team2.members.filter(m => m.class_type === '치유성').length;
       if (t2Tanks >= 2) score += 100000;
+      if (t2Healers >= 2) score += 100000;
     }
   }
 
@@ -514,7 +518,7 @@ function tryFormRaid(
   }
 
   // DPS 부족 시 남은 서포트 캐릭터로 빈 자리 채우기
-  // Team1: 치유성/호법성 모두 가능, Team2: 치유성만 가능 (호법성 불가)
+  // 치유성+호법성 같은 팀 허용, 호법성+호법성 동일 팀은 비허용
   const remainingSupports = eligible
     .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '치유성' || c.class_type === '호법성'))
     .sort((a, b) => b.combat_power - a.combat_power);
@@ -524,48 +528,46 @@ function tryFormRaid(
     if (isOwnerInRaid(char.owner_id)) continue;
 
     const can1 = team1Members.length < 4;
-    const can2 = team2Members.length < 4 && char.class_type !== '호법성';
+    const can2 = team2Members.length < 4;
+    const t1Tanks = team1Members.filter(m => m.class_type === '호법성').length;
+    const t2Tanks = team2Members.filter(m => m.class_type === '호법성').length;
 
-    if (can1 && can2) {
-      const t1Support = countSupportInTeam(team1Members);
-      const t2Support = countSupportInTeam(team2Members);
-      const t1Healers = team1Members.filter(m => m.class_type === '치유성').length;
-      const t2Healers = team2Members.filter(m => m.class_type === '치유성').length;
-
-      if (char.class_type === '치유성') {
-        // 치유성: 양 팀에 치유성이 없는 팀 우선 배치
-        if (t1Healers === 0 && t2Healers > 0) {
-          addToTeam(team1Members, char);
-        } else if (t2Healers === 0 && t1Healers > 0) {
-          addToTeam(team2Members, char);
-        } else if (t1Support <= t2Support) {
+    if (char.class_type === '호법성') {
+      // 호법성: 이미 호법성이 있는 팀에는 배치하지 않음 (호법성+호법성 방지)
+      const canPlace1 = can1 && t1Tanks === 0;
+      const canPlace2 = can2 && t2Tanks === 0;
+      if (canPlace1 && canPlace2) {
+        const t1Support = countSupportInTeam(team1Members);
+        const t2Support = countSupportInTeam(team2Members);
+        if (t1Support <= t2Support) {
           addToTeam(team1Members, char);
         } else {
           addToTeam(team2Members, char);
         }
-      } else {
-        // 호법성: 이미 호법성이 있는 팀에는 절대 배치하지 않음
-        const t1Tanks = team1Members.filter(m => m.class_type === '호법성').length;
-        if (t1Tanks === 0 && can1) {
-          addToTeam(team1Members, char);
-        }
-        // t1에 이미 호법성이 있으면 배치하지 않음 (제외 인원으로 빠짐)
-        // 호법성은 2팀에도 배치하지 않음 (기존 규칙 유지)
-      }
-    } else if (can1 && can2) {
-      // 이미 위에서 처리됨 (도달 불가)
-      addToTeam(team1Members, char);
-    } else if (can1) {
-      // 호법성이면 이미 있는지 체크
-      if (char.class_type === '호법성') {
-        const t1Tanks = team1Members.filter(m => m.class_type === '호법성').length;
-        if (t1Tanks === 0) addToTeam(team1Members, char);
-        // 이미 있으면 배치하지 않음
-      } else {
+      } else if (canPlace1) {
         addToTeam(team1Members, char);
+      } else if (canPlace2) {
+        addToTeam(team2Members, char);
       }
-    } else if (can2) {
-      addToTeam(team2Members, char);
+    } else {
+      // 치유성: 이미 치유성이 있는 팀에는 배치하지 않음 (치유성+치유성 방지)
+      const t1Healers = team1Members.filter(m => m.class_type === '치유성').length;
+      const t2Healers = team2Members.filter(m => m.class_type === '치유성').length;
+      const canPlace1 = can1 && t1Healers === 0;
+      const canPlace2 = can2 && t2Healers === 0;
+      if (canPlace1 && canPlace2) {
+        const t1Support = countSupportInTeam(team1Members);
+        const t2Support = countSupportInTeam(team2Members);
+        if (t1Support <= t2Support) {
+          addToTeam(team1Members, char);
+        } else {
+          addToTeam(team2Members, char);
+        }
+      } else if (canPlace1) {
+        addToTeam(team1Members, char);
+      } else if (canPlace2) {
+        addToTeam(team2Members, char);
+      }
     }
   }
 
@@ -586,11 +588,16 @@ function tryFormRaid(
   }
 
   if (team1Members.length < 4 || team2Members.length < 4) return null;
-  // 서포트 최소 요건: Team1에 최소 1명 서포트, Team2에 최소 1명 치유성 + 호법성 0명
+  // 서포트 최소 요건: 각 팀에 최소 1명 서포트, 동일 서포트 중복 불가
   if (countSupportInTeam(team1Members) < 1) return null;
+  if (countSupportInTeam(team2Members) < 1) return null;
   const team2Healers = team2Members.filter(m => m.class_type === '치유성').length;
-  const team2Tanks = team2Members.filter(m => m.class_type === '호법성').length;
-  if (team2Healers < 1 || team2Tanks !== 0) return null;
+  if (team2Healers < 1) return null; // 2팀에는 치유성 최소 1명 필수
+  // 동일 서포트 2명 동일 팀 방지 (호법성+호법성, 치유성+치유성)
+  if (team1Members.filter(m => m.class_type === '호법성').length >= 2) return null;
+  if (team2Members.filter(m => m.class_type === '호법성').length >= 2) return null;
+  if (team1Members.filter(m => m.class_type === '치유성').length >= 2) return null;
+  if (team2Members.filter(m => m.class_type === '치유성').length >= 2) return null;
 
   // 후처리: 2파티 전투력이 1파티보다 높도록 DPS 스왑
   const t1Avg = calcTeamAvg(team1Members);
@@ -1304,13 +1311,13 @@ function generateCompositions(slotGroups: SlotGroup[], maxBots: number, raidType
   if (inclusive) allResults.push(inclusive);
 
   // 최대 공격대 수 전략 (다양한 seed)
-  for (let seed = 0; seed < 50; seed++) {
+  for (let seed = 0; seed < 200; seed++) {
     const comp = maxRaidsComposition(slotGroups, maxBots, seed * 3571, raidType);
     if (comp) allResults.push(comp);
   }
 
-  // 셔플 기반 다양한 조합 생성 (100회)
-  for (let seed = 1; seed <= 100; seed++) {
+  // 셔플 기반 다양한 조합 생성 (500회)
+  for (let seed = 1; seed <= 500; seed++) {
     const comp = shuffledComposition(slotGroups, maxBots, seed * 7919, raidType);
     if (comp) allResults.push(comp);
   }
@@ -1984,8 +1991,8 @@ export function solveBriRaidComposition(registrations: DBRegistration[], blocked
 
   const allResults: RaidComposition[] = [];
 
-  // 다양한 전략으로 조합 생성 (100회 셔플)
-  for (let seed = 0; seed < 100; seed++) {
+  // 다양한 전략으로 조합 생성 (300회 셔플)
+  for (let seed = 0; seed < 300; seed++) {
     const comp = solveBriComposition(slotGroups, seed * 7919);
     if (comp) allResults.push(comp);
   }
