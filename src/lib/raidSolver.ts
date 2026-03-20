@@ -210,10 +210,24 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
     score += Math.sqrt(teamVar) * 80;
   }
 
-  // 근딜 없는 팀 패널티
+  // 근딜/원딜 각각 최소 1명 없으면 패널티
   for (const raid of comp.raids) {
-    if (!raid.team1.members.some(m => m.class_type === '근딜')) score += 200;
-    if (raid.team2 && !raid.team2.members.some(m => m.class_type === '근딜')) score += 200;
+    if (!raid.team1.members.some(m => m.class_type === '근딜')) score += 2000;
+    if (!raid.team1.members.some(m => m.class_type === '원딜')) score += 2000;
+    if (raid.team2) {
+      if (!raid.team2.members.some(m => m.class_type === '근딜')) score += 2000;
+      if (!raid.team2.members.some(m => m.class_type === '원딜')) score += 2000;
+    }
+  }
+
+  // 호법성 2명 동일 팀 매우 큰 패널티
+  for (const raid of comp.raids) {
+    const t1Tanks = raid.team1.members.filter(m => m.class_type === '호법성').length;
+    if (t1Tanks >= 2) score += 20000;
+    if (raid.team2) {
+      const t2Tanks = raid.team2.members.filter(m => m.class_type === '호법성').length;
+      if (t2Tanks >= 2) score += 20000;
+    }
   }
 
   // 서포트 과다 팀 패널티 (되도록 한 파티에 여러 서포트 비선호)
@@ -469,12 +483,14 @@ function tryFormRaid(
           addToTeam(team2Members, char);
         }
       } else {
-        // 호법성: 서포트가 적은 팀에 배치
-        if (t1Support <= t2Support) {
+        // 호법성: 이미 호법성이 있는 팀 회피
+        const t1Tanks = team1Members.filter(m => m.class_type === '호법성').length;
+        if (t1Tanks === 0 && can1) {
           addToTeam(team1Members, char);
-        } else {
-          addToTeam(team2Members, char);
+        } else if (can1 && t1Support <= t2Support) {
+          addToTeam(team1Members, char);
         }
+        // 호법성은 2팀에 배치하지 않음 (기존 규칙 유지)
       }
     } else if (can1) {
       addToTeam(team1Members, char);
@@ -483,16 +499,20 @@ function tryFormRaid(
     }
   }
 
-  // 봇 채우기
+  // 봇 채우기 (근딜/원딜 각각 최소 1명 보장)
   const botPower = getBotCombatPower(usedChars);
 
   while (team1Members.length < 4 && botCount < maxBotsPerRaid) {
     const needMelee = !team1Members.some(m => m.class_type === '근딜');
-    team1Members.push(createBot(needMelee ? '근딜' : '원딜', botPower, ++botCount));
+    const needRanged = !team1Members.some(m => m.class_type === '원딜');
+    const botClass = needMelee ? '근딜' : needRanged ? '원딜' : '원딜';
+    team1Members.push(createBot(botClass, botPower, ++botCount));
   }
   while (team2Members.length < 4 && botCount < maxBotsPerRaid) {
     const needMelee = !team2Members.some(m => m.class_type === '근딜');
-    team2Members.push(createBot(needMelee ? '근딜' : '원딜', botPower, ++botCount));
+    const needRanged = !team2Members.some(m => m.class_type === '원딜');
+    const botClass = needMelee ? '근딜' : needRanged ? '원딜' : '원딜';
+    team2Members.push(createBot(botClass, botPower, ++botCount));
   }
 
   if (team1Members.length < 4 || team2Members.length < 4) return null;
