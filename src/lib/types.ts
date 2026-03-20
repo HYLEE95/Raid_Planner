@@ -43,7 +43,7 @@ export const RAID_CONFIGS: Record<RaidType, RaidConfig> = {
     minPartySize: 4,
     maxPartySize: 8,
     durationHours: 1,
-    maxBots: 0,
+    maxBots: 2,
   },
 };
 

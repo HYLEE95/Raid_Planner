@@ -8,14 +8,30 @@ import {
   deleteRegistration,
   saveConfirmedRaid,
   getConfirmedRaid,
+  getAllConfirmedRaids,
   generateId,
 } from '../../lib/storage';
-import { solveRaidComposition } from '../../lib/raidSolver';
-import { solveBriRaidComposition } from '../../lib/raidSolver';
+import { solveRaidComposition, solveBriRaidComposition } from '../../lib/raidSolver';
+import type { BlockedOwnerSlots } from '../../lib/raidSolver';
 import RaidResult from '../RaidResult/RaidResult';
 import WeekPicker from '../WeekPicker/WeekPicker';
 import type { DBRegistration, RaidComposition, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
+
+const COMP_STORAGE_KEY = 'raid-planner-compositions';
+
+function saveComps(raidType: string, weekStart: string, comps: RaidComposition[]) {
+  localStorage.setItem(`${COMP_STORAGE_KEY}-${raidType}-${weekStart}`, JSON.stringify(comps));
+}
+
+function loadComps(raidType: string, weekStart: string): RaidComposition[] {
+  const data = localStorage.getItem(`${COMP_STORAGE_KEY}-${raidType}-${weekStart}`);
+  return data ? JSON.parse(data) : [];
+}
+
+function clearComps(raidType: string, weekStart: string) {
+  localStorage.removeItem(`${COMP_STORAGE_KEY}-${raidType}-${weekStart}`);
+}
 
 export default function Home() {
   const navigate = useNavigate();
@@ -42,6 +58,13 @@ export default function Home() {
     loadData();
   }, [loadData]);
 
+  // 레이드/주차 변경 시 저장된 조합 로드
+  useEffect(() => {
+    if (!selectedRaid) { setCompositions([]); return; }
+    const stored = loadComps(selectedRaid, selectedWeek);
+    setCompositions(stored);
+  }, [selectedRaid, selectedWeek]);
+
   useEffect(() => {
     if (!selectedRaid) return () => {};
     const unsubscribe = subscribeToRegistrations(selectedWeek, (regs) => {
@@ -52,20 +75,44 @@ export default function Home() {
 
   const [insufficientMsg, setInsufficientMsg] = useState('');
 
-  const handleSolve = () => {
+  const handleSolve = async () => {
     if (!selectedRaid) return;
     setLoading(true);
     setInsufficientMsg('');
-    setTimeout(() => {
+
+    try {
+      // 크로스 레이드 충돌 방지: 다른 레이드의 확정된 소유주 시간대 로드
+      const allConfirmed = await getAllConfirmedRaids();
+      const otherConfirmed = allConfirmed.filter(c => c.raid_type !== selectedRaid);
+
+      const blockedOwnerSlots: BlockedOwnerSlots = new Map();
+      for (const confirmed of otherConfirmed) {
+        for (const raid of confirmed.composition.raids) {
+          const allMembers = [...raid.team1.members, ...(raid.team2?.members || [])];
+          for (const m of allMembers) {
+            if ('isBot' in m && m.isBot) continue;
+            if (!('ownerName' in m)) continue;
+            const ownerName = (m as any).ownerName as string;
+            if (!blockedOwnerSlots.has(ownerName)) blockedOwnerSlots.set(ownerName, []);
+            blockedOwnerSlots.get(ownerName)!.push(raid.timeSlot);
+          }
+        }
+      }
+
       const results = selectedRaid === '브리레흐'
-        ? solveBriRaidComposition(registrations)
-        : solveRaidComposition(registrations, selectedRaid);
+        ? solveBriRaidComposition(registrations, blockedOwnerSlots)
+        : solveRaidComposition(registrations, selectedRaid, blockedOwnerSlots);
       setCompositions(results);
+      saveComps(selectedRaid, selectedWeek, results);
       if (results.length === 0 && registrations.length > 0) {
         setInsufficientMsg('인원이 부족하여 공격대 배치가 불가합니다.');
       }
+    } catch (err) {
+      console.error('배치 실패:', err);
+      setInsufficientMsg('배치 중 오류가 발생했습니다.');
+    } finally {
       setLoading(false);
-    }, 50);
+    }
   };
 
   const handleConfirm = async (comp: RaidComposition) => {
@@ -87,6 +134,12 @@ export default function Home() {
     } catch (err) {
       alert('확정 실패: ' + (err as Error).message);
     }
+  };
+
+  const handleUpdateCompositions = (comps: RaidComposition[]) => {
+    if (!selectedRaid) return;
+    setCompositions(comps);
+    saveComps(selectedRaid, selectedWeek, comps);
   };
 
   const handleEdit = (reg: DBRegistration) => {
@@ -113,7 +166,6 @@ export default function Home() {
               onClick={() => {
                 setSelectedRaid(rt);
                 setSelectedWeek(formatDate(getWeekStartForRaid(new Date(), rt)));
-                setCompositions([]);
               }}
               className={`px-4 py-2 rounded-lg text-sm font-semibold border-2 transition-colors ${
                 selectedRaid === rt
@@ -138,7 +190,6 @@ export default function Home() {
                 value={selectedWeek}
                 onChange={(v) => {
                   setSelectedWeek(v);
-                  setCompositions([]);
                 }}
                 resetDay={RAID_CONFIGS[selectedRaid].resetDay}
               />
@@ -169,8 +220,12 @@ export default function Home() {
             </button>
             {compositions.length > 0 && (
               <button
-                onClick={() => { setCompositions([]); setInsufficientMsg(''); }}
-                className="px-3 py-2.5 rounded-lg font-semibold text-red-600 bg-white border border-red-300 hover:bg-red-50 active:bg-red-100 transition-colors flex items-center gap-1.5"
+                onClick={() => {
+                  setCompositions([]);
+                  setInsufficientMsg('');
+                  if (selectedRaid) clearComps(selectedRaid, selectedWeek);
+                }}
+                className="px-3 py-2.5 rounded-lg font-semibold text-red-600 bg-white dark:bg-gray-800 border border-red-300 dark:border-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 active:bg-red-100 transition-colors flex items-center gap-1.5"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -271,7 +326,10 @@ export default function Home() {
               selectedIndex={0}
               onSelectIndex={() => {}}
               onConfirm={handleConfirm}
+              onUpdate={handleUpdateCompositions}
               raidType={selectedRaid}
+              weekStart={selectedWeek}
+              registrations={registrations}
             />
           )}
         </>

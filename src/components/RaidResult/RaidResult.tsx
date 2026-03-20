@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { RaidComposition, RaidGroup, RaidMember, RaidType } from '../../lib/types';
+import { useState, useMemo } from 'react';
+import type { RaidComposition, RaidGroup, RaidMember, RaidType, DBRegistration, BotCharacter } from '../../lib/types';
+import { calcTeamAvg } from '../../lib/raidSolver';
 
 const CLASS_BADGE: Record<string, string> = {
   '근딜': 'bg-red-500 text-white',
@@ -21,51 +22,282 @@ function formatDateWithDay(dateStr: string): string {
   return `${month}/${day}(${dayName})`;
 }
 
-function MemberCard({ member, raidType }: { member: RaidMember; raidType?: RaidType }) {
+function timeToMinutes(t: string): number {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function minutesToTime(mins: number): string {
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+}
+
+function getWeekDates(weekStart: string): string[] {
+  const dates: string[] = [];
+  const start = new Date(weekStart + 'T00:00:00');
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    const y = d.getFullYear();
+    const mo = (d.getMonth() + 1).toString().padStart(2, '0');
+    const day = d.getDate().toString().padStart(2, '0');
+    dates.push(`${y}-${mo}-${day}`);
+  }
+  return dates;
+}
+
+function generateStartTimes(): string[] {
+  const times: string[] = [];
+  for (let h = 0; h < 24; h++) {
+    times.push(`${h.toString().padStart(2, '0')}:00`);
+    times.push(`${h.toString().padStart(2, '0')}:30`);
+  }
+  return times;
+}
+
+const START_TIMES = generateStartTimes();
+
+// 공격대 인원의 가용 시간대 계산
+function computeAvailableSlots(
+  raid: RaidGroup,
+  registrations: DBRegistration[],
+): { dates: string[]; timesForDate: Map<string, string[]> } | null {
+  const allMembers = [...raid.team1.members, ...(raid.team2?.members || [])];
+  const nonBotMembers = allMembers.filter(m => !('isBot' in m && m.isBot));
+
+  if (nonBotMembers.length === 0 || registrations.length === 0) return null;
+
+  const memberRegs: DBRegistration[] = [];
+  const seenOwners = new Set<string>();
+  for (const member of nonBotMembers) {
+    const ownerName = 'ownerName' in member ? (member as any).ownerName : null;
+    if (!ownerName || seenOwners.has(ownerName)) continue;
+    seenOwners.add(ownerName);
+    const reg = registrations.find(r => r.owner_name === ownerName);
+    if (reg) memberRegs.push(reg);
+  }
+
+  if (memberRegs.length === 0) return null;
+
+  const allDates = new Set<string>();
+  for (const reg of memberRegs) {
+    for (const ts of reg.time_slots) allDates.add(ts.date);
+  }
+
+  const commonDates = [...allDates].filter(date =>
+    memberRegs.every(reg => reg.time_slots.some(ts => ts.date === date))
+  );
+
+  const timesForDate = new Map<string, string[]>();
+  for (const date of commonDates) {
+    const availableTimes = START_TIMES.filter(startTime => {
+      const endTime = minutesToTime(timeToMinutes(startTime) + 60);
+      return memberRegs.every(reg =>
+        reg.time_slots.some(ts =>
+          ts.date === date && ts.start_time <= startTime && ts.end_time >= endTime
+        )
+      );
+    });
+    if (availableTimes.length > 0) {
+      timesForDate.set(date, availableTimes);
+    }
+  }
+
+  return {
+    dates: commonDates.filter(d => timesForDate.has(d)).sort(),
+    timesForDate,
+  };
+}
+
+// 멤버를 제외 캐릭터로 변환
+function memberToExcluded(member: RaidMember): RaidComposition['excludedCharacters'][0] {
+  return {
+    id: (member as any).id || '',
+    owner_id: (member as any).owner_id || '',
+    nickname: member.nickname,
+    class_type: member.class_type,
+    combat_power: member.combat_power,
+    can_clear_raid: (member as any).can_clear_raid ?? false,
+    is_underpowered: (member as any).is_underpowered ?? false,
+    ownerName: (member as any).ownerName || '',
+    ...((member as any).has_destruction_robe !== undefined && { has_destruction_robe: (member as any).has_destruction_robe }),
+    ...((member as any).has_soul_weapon !== undefined && { has_soul_weapon: (member as any).has_soul_weapon }),
+    ...((member as any).desired_clears !== undefined && { desired_clears: (member as any).desired_clears }),
+  } as any;
+}
+
+// 교체 옵션
+interface SwapOption {
+  label: string;
+  value: string;
+  group: string;
+}
+
+function buildSwapOptions(
+  comp: RaidComposition,
+  currentRaidId: number,
+  currentTeamKey: 'team1' | 'team2',
+  currentMemberIdx: number,
+  raidType?: RaidType,
+): SwapOption[] {
+  const options: SwapOption[] = [];
+  const isBri = raidType === '브리레흐';
+
+  // 1. 빠지는 인원
+  for (let i = 0; i < comp.excludedCharacters.length; i++) {
+    const char = comp.excludedCharacters[i];
+    let label = `${char.nickname} (${char.ownerName}) - ${char.class_type}`;
+    if (!isBri && char.combat_power > 0) label += ` ${char.combat_power}K`;
+    options.push({ label, value: `ex:${i}`, group: '빠지는 인원' });
+  }
+
+  // 2. 다른 공격대/팀 인원
+  for (const raid of comp.raids) {
+    const teams: ('team1' | 'team2')[] = ['team1'];
+    if (raid.team2) teams.push('team2');
+
+    for (const teamKey of teams) {
+      const team = raid[teamKey];
+      if (!team) continue;
+
+      team.members.forEach((member, mIdx) => {
+        if (raid.id === currentRaidId && teamKey === currentTeamKey && mIdx === currentMemberIdx) return;
+
+        const isBot = 'isBot' in member && member.isBot;
+        const ownerInfo = !isBot && 'ownerName' in member ? ` (${(member as any).ownerName})` : '';
+        let label = `${member.nickname}${ownerInfo} - ${member.class_type}`;
+        if (!isBri && member.combat_power > 0) label += ` ${member.combat_power}K`;
+
+        const raidLabel = isBri
+          ? `파티 ${raid.id}`
+          : `공격대 ${raid.id} ${teamKey === 'team1' ? '1팀' : '2팀'}`;
+
+        options.push({ label, value: `mem:${raid.id}:${teamKey}:${mIdx}`, group: raidLabel });
+      });
+    }
+  }
+
+  // 3. 공방인원으로 교체
+  options.push({
+    label: '공방인원 (봇)',
+    value: 'bot',
+    group: '공방인원으로 교체',
+  });
+
+  return options;
+}
+
+function MemberCard({
+  member,
+  raidType,
+  swapOptions,
+  onSwap,
+}: {
+  member: RaidMember;
+  raidType?: RaidType;
+  swapOptions?: SwapOption[];
+  onSwap?: (value: string) => void;
+}) {
+  const [showSwap, setShowSwap] = useState(false);
   const isBot = 'isBot' in member && member.isBot;
   const isUnderpowered = !isBot && 'is_underpowered' in member && (member as any).is_underpowered;
   const isBri = raidType === '브리레흐';
 
+  const groupedOptions = useMemo(() => {
+    if (!swapOptions) return [];
+    const groups = new Map<string, SwapOption[]>();
+    for (const opt of swapOptions) {
+      if (!groups.has(opt.group)) groups.set(opt.group, []);
+      groups.get(opt.group)!.push(opt);
+    }
+    return [...groups.entries()];
+  }, [swapOptions]);
+
   return (
-    <div
-      className={`flex items-center gap-2 p-2 rounded border ${
-        isBot
-          ? 'bg-gray-100 dark:bg-gray-700 border-dashed border-gray-400'
-          : isUnderpowered
-            ? 'bg-orange-50 dark:bg-orange-900/30 border-orange-300'
-            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600'
-      }`}
-    >
-      <span
-        className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${CLASS_BADGE[member.class_type] || 'bg-gray-500 text-white'}`}
+    <div>
+      <div
+        className={`flex items-center gap-2 p-2 rounded border ${
+          isBot
+            ? 'bg-gray-100 dark:bg-gray-700 border-dashed border-gray-400'
+            : isUnderpowered
+              ? 'bg-orange-50 dark:bg-orange-900/30 border-orange-300'
+              : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600'
+        }`}
       >
-        {member.class_type}
-      </span>
-      <span
-        className={`text-sm font-medium truncate min-w-0 ${isBot ? 'text-gray-400 italic' : 'text-gray-800 dark:text-gray-200'}`}
-      >
-        {member.nickname}
-      </span>
-      {isUnderpowered && (
-        <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200 shrink-0 whitespace-nowrap">저스펙</span>
-      )}
-      {!isBri && (
-        <span className="text-xs text-gray-500 ml-auto shrink-0 whitespace-nowrap">{member.combat_power}K</span>
-      )}
-      {isBri && !isBot && 'has_destruction_robe' in member && (member as any).has_destruction_robe && (
-        <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700 shrink-0 whitespace-nowrap">로브</span>
-      )}
-      {isBri && !isBot && 'has_soul_weapon' in member && (member as any).has_soul_weapon && (
-        <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700 shrink-0 whitespace-nowrap">소울</span>
-      )}
-      {!isBot && 'ownerName' in member && (
-        <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-auto">({member.ownerName})</span>
+        <span
+          className={`px-1.5 py-0.5 rounded text-xs font-bold shrink-0 ${CLASS_BADGE[member.class_type] || 'bg-gray-500 text-white'}`}
+        >
+          {member.class_type}
+        </span>
+        <span
+          className={`text-sm font-medium truncate min-w-0 ${isBot ? 'text-gray-400 italic' : 'text-gray-800 dark:text-gray-200'}`}
+        >
+          {member.nickname}
+        </span>
+        {isUnderpowered && (
+          <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200 shrink-0 whitespace-nowrap">저스펙</span>
+        )}
+        {!isBri && (
+          <span className="text-xs text-gray-500 shrink-0 whitespace-nowrap">{member.combat_power}K</span>
+        )}
+        {isBri && !isBot && 'has_destruction_robe' in member && (member as any).has_destruction_robe && (
+          <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700 shrink-0 whitespace-nowrap">로브</span>
+        )}
+        {isBri && !isBot && 'has_soul_weapon' in member && (member as any).has_soul_weapon && (
+          <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700 shrink-0 whitespace-nowrap">소울</span>
+        )}
+        {!isBot && 'ownerName' in member && (
+          <span className="text-xs text-gray-400 shrink-0 whitespace-nowrap ml-auto">({member.ownerName})</span>
+        )}
+        {onSwap && swapOptions && swapOptions.length > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowSwap(!showSwap); }}
+            className="text-[10px] px-1.5 py-0.5 rounded border border-indigo-300 dark:border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 shrink-0 ml-auto"
+            title="캐릭터 변경"
+          >
+            변경
+          </button>
+        )}
+      </div>
+      {showSwap && groupedOptions.length > 0 && (
+        <select
+          className="w-full mt-1 text-xs border border-gray-300 dark:border-gray-600 rounded p-1.5 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200"
+          value=""
+          onChange={(e) => {
+            if (e.target.value && onSwap) {
+              onSwap(e.target.value);
+              setShowSwap(false);
+            }
+          }}
+        >
+          <option value="">교체할 캐릭터 선택...</option>
+          {groupedOptions.map(([group, opts]) => (
+            <optgroup key={group} label={group}>
+              {opts.map((opt, i) => (
+                <option key={`${group}-${i}`} value={opt.value}>{opt.label}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
       )}
     </div>
   );
 }
 
-function TeamCard({ team, label, raidType }: { team: { members: RaidMember[]; avgCombatPower: number }; label: string; raidType?: RaidType }) {
+function TeamCard({
+  team,
+  label,
+  raidType,
+  swapOptionsForMember,
+  onSwapMember,
+}: {
+  team: { members: RaidMember[]; avgCombatPower: number };
+  label: string;
+  raidType?: RaidType;
+  swapOptionsForMember?: (memberIdx: number) => SwapOption[];
+  onSwapMember?: (memberIdx: number, value: string) => void;
+}) {
   const isBri = raidType === '브리레흐';
   return (
     <div className="flex-1 min-w-0">
@@ -84,15 +316,60 @@ function TeamCard({ team, label, raidType }: { team: { members: RaidMember[]; av
       </div>
       <div className="space-y-1">
         {team.members.map((member, idx) => (
-          <MemberCard key={idx} member={member} raidType={raidType} />
+          <MemberCard
+            key={idx}
+            member={member}
+            raidType={raidType}
+            swapOptions={swapOptionsForMember ? swapOptionsForMember(idx) : undefined}
+            onSwap={onSwapMember ? (val) => onSwapMember(idx, val) : undefined}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-function RaidGroupCard({ raid, raidType }: { raid: RaidGroup; raidType?: RaidType }) {
+function RaidGroupCard({
+  raid,
+  raidType,
+  weekDates,
+  registrations,
+  comp,
+  onDateChange,
+  onTimeChange,
+  onSwapMember,
+}: {
+  raid: RaidGroup;
+  raidType?: RaidType;
+  weekDates: string[];
+  registrations?: DBRegistration[];
+  comp?: RaidComposition;
+  onDateChange?: (date: string) => void;
+  onTimeChange?: (startTime: string) => void;
+  onSwapMember?: (team: 'team1' | 'team2', memberIdx: number, value: string) => void;
+}) {
+  const [showAllSlots, setShowAllSlots] = useState(false);
   const isBri = raidType === '브리레흐';
+  const endTime = minutesToTime(timeToMinutes(raid.timeSlot.start_time) + 60);
+
+  // 가용 시간대 계산
+  const availableSlots = useMemo(() => {
+    if (!registrations || registrations.length === 0) return null;
+    return computeAvailableSlots(raid, registrations);
+  }, [raid, registrations]);
+
+  const hasAvailableSlots = availableSlots && availableSlots.dates.length > 0;
+  const displayDates = showAllSlots || !hasAvailableSlots ? weekDates : availableSlots!.dates;
+  const displayTimes = showAllSlots || !hasAvailableSlots
+    ? START_TIMES
+    : (availableSlots!.timesForDate.get(raid.timeSlot.date) || START_TIMES);
+
+  // 교체 옵션 빌드
+  const getSwapOptions = (teamKey: 'team1' | 'team2', memberIdx: number): SwapOption[] => {
+    if (!comp) return [];
+    return buildSwapOptions(comp, raid.id, teamKey, memberIdx, raidType);
+  };
+
   return (
     <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-800 shadow-sm">
       <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
@@ -100,9 +377,56 @@ function RaidGroupCard({ raid, raidType }: { raid: RaidGroup; raidType?: RaidTyp
           {isBri ? `파티 ${raid.id}` : `공격대 ${raid.id}`}
         </h3>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-gray-600 dark:text-gray-400">
-            {formatDateWithDay(raid.timeSlot.date)} {raid.timeSlot.start_time}~{raid.timeSlot.end_time}
-          </span>
+          {/* 날짜 선택 */}
+          {onDateChange ? (
+            <select
+              value={raid.timeSlot.date}
+              onChange={(e) => onDateChange(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="text-sm border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 cursor-pointer"
+            >
+              {displayDates.map(d => (
+                <option key={d} value={d}>{formatDateWithDay(d)}</option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {formatDateWithDay(raid.timeSlot.date)}
+            </span>
+          )}
+          {/* 시작 시간 선택 */}
+          {onTimeChange ? (
+            <div className="flex items-center gap-1">
+              <select
+                value={raid.timeSlot.start_time}
+                onChange={(e) => onTimeChange(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="text-sm border border-gray-300 dark:border-gray-600 rounded px-1.5 py-0.5 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 cursor-pointer"
+              >
+                {displayTimes.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500">~{endTime}</span>
+            </div>
+          ) : (
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {raid.timeSlot.start_time}~{endTime}
+            </span>
+          )}
+          {/* 추가 시간대 체크박스 */}
+          {onDateChange && hasAvailableSlots && (
+            <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showAllSlots}
+                onChange={(e) => { e.stopPropagation(); setShowAllSlots(e.target.checked); }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-3 h-3"
+              />
+              추가 시간대
+            </label>
+          )}
           {!isBri && (
             <span className="text-sm font-medium text-indigo-600">
               평균(딜러) {raid.avgCombatPower.toFixed(1)}K
@@ -123,11 +447,31 @@ function RaidGroupCard({ raid, raidType }: { raid: RaidGroup; raidType?: RaidTyp
 
       <div className="flex gap-4 flex-wrap">
         {isBri ? (
-          <TeamCard team={raid.team1} label="파티원" raidType={raidType} />
+          <TeamCard
+            team={raid.team1}
+            label="파티원"
+            raidType={raidType}
+            swapOptionsForMember={onSwapMember ? (mIdx) => getSwapOptions('team1', mIdx) : undefined}
+            onSwapMember={onSwapMember ? (mIdx, val) => onSwapMember('team1', mIdx, val) : undefined}
+          />
         ) : (
           <>
-            <TeamCard team={raid.team1} label="1팀" raidType={raidType} />
-            {raid.team2 && <TeamCard team={raid.team2} label="2팀" raidType={raidType} />}
+            <TeamCard
+              team={raid.team1}
+              label="1팀"
+              raidType={raidType}
+              swapOptionsForMember={onSwapMember ? (mIdx) => getSwapOptions('team1', mIdx) : undefined}
+              onSwapMember={onSwapMember ? (mIdx, val) => onSwapMember('team1', mIdx, val) : undefined}
+            />
+            {raid.team2 && (
+              <TeamCard
+                team={raid.team2}
+                label="2팀"
+                raidType={raidType}
+                swapOptionsForMember={onSwapMember ? (mIdx) => getSwapOptions('team2', mIdx) : undefined}
+                onSwapMember={onSwapMember ? (mIdx, val) => onSwapMember('team2', mIdx, val) : undefined}
+              />
+            )}
           </>
         )}
       </div>
@@ -144,6 +488,7 @@ function CompositionSummary({ comp, raidType }: { comp: RaidComposition; raidTyp
     return (
       <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
         <span>파티 {comp.raids.length}개</span>
+        {totalBots > 0 && <span>공방인원 {totalBots}명</span>}
         {comp.excludedCharacters.length > 0 && (
           <span className="text-orange-500">제외 {comp.excludedCharacters.length}명</span>
         )}
@@ -172,11 +517,17 @@ interface RaidResultProps {
   selectedIndex: number;
   onSelectIndex: (idx: number) => void;
   onConfirm?: (comp: RaidComposition) => void;
+  onUpdate?: (compositions: RaidComposition[]) => void;
   raidType?: RaidType;
+  weekStart?: string;
+  registrations?: DBRegistration[];
 }
 
-export default function RaidResult({ compositions, onConfirm, raidType }: RaidResultProps) {
+export default function RaidResult({ compositions, onConfirm, onUpdate, raidType, weekStart, registrations }: RaidResultProps) {
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+
+  const weekDates = weekStart ? getWeekDates(weekStart) : [];
+  const isBri = raidType === '브리레흐';
 
   if (compositions.length === 0) {
     return (
@@ -189,6 +540,239 @@ export default function RaidResult({ compositions, onConfirm, raidType }: RaidRe
 
   const toggleExpand = (idx: number) => {
     setExpandedIndex(expandedIndex === idx ? null : idx);
+  };
+
+  // 조합 업데이트 헬퍼
+  const updateComp = (compIdx: number, updatedComp: RaidComposition) => {
+    if (!onUpdate) return;
+    const newComps = [...compositions];
+    newComps[compIdx] = updatedComp;
+    onUpdate(newComps);
+  };
+
+  // 공격대 내 팀/공격대 통계 재계산
+  const recalcRaidStats = (raid: RaidGroup): RaidGroup => {
+    const updated = { ...raid };
+    updated.team1 = { ...updated.team1, avgCombatPower: calcTeamAvg(updated.team1.members) };
+    if (updated.team2) {
+      updated.team2 = { ...updated.team2, avgCombatPower: calcTeamAvg(updated.team2.members) };
+    }
+    const allMembers = [...updated.team1.members, ...(updated.team2?.members || [])];
+    updated.botCount = allMembers.filter(m => 'isBot' in m && m.isBot).length;
+    if (updated.team2) {
+      updated.avgCombatPower = (updated.team1.avgCombatPower + updated.team2.avgCombatPower) / 2;
+    } else {
+      updated.avgCombatPower = updated.team1.avgCombatPower;
+    }
+    return updated;
+  };
+
+  // 날짜 변경
+  const handleDateChange = (compIdx: number, raidId: number, newDate: string) => {
+    const comp = compositions[compIdx];
+    const updatedRaids = comp.raids.map(r => {
+      if (r.id !== raidId) return r;
+      return { ...r, timeSlot: { ...r.timeSlot, date: newDate } };
+    });
+    updateComp(compIdx, { ...comp, raids: updatedRaids });
+  };
+
+  // 시간 변경
+  const handleTimeChange = (compIdx: number, raidId: number, newStartTime: string) => {
+    const comp = compositions[compIdx];
+    const newEndTime = minutesToTime(timeToMinutes(newStartTime) + 60);
+    const updatedRaids = comp.raids.map(r => {
+      if (r.id !== raidId) return r;
+      return { ...r, timeSlot: { ...r.timeSlot, start_time: newStartTime, end_time: newEndTime } };
+    });
+    updateComp(compIdx, { ...comp, raids: updatedRaids });
+  };
+
+  // 통합 교체 핸들러
+  const handleSwap = (
+    compIdx: number,
+    raidId: number,
+    teamKey: 'team1' | 'team2',
+    memberIdx: number,
+    value: string,
+  ) => {
+    if (value.startsWith('ex:')) {
+      const excludedIdx = parseInt(value.substring(3));
+      handleSwapWithExcluded(compIdx, raidId, teamKey, memberIdx, excludedIdx);
+    } else if (value.startsWith('mem:')) {
+      const parts = value.substring(4).split(':');
+      const targetRaidId = parseInt(parts[0]);
+      const targetTeamKey = parts[1] as 'team1' | 'team2';
+      const targetMemberIdx = parseInt(parts[2]);
+      handleSwapMembers(compIdx, raidId, teamKey, memberIdx, targetRaidId, targetTeamKey, targetMemberIdx);
+    } else if (value === 'bot') {
+      handleReplaceWithBot(compIdx, raidId, teamKey, memberIdx);
+    }
+  };
+
+  // 제외 캐릭터와 교체
+  const handleSwapWithExcluded = (
+    compIdx: number,
+    raidId: number,
+    teamKey: 'team1' | 'team2',
+    memberIdx: number,
+    excludedIdx: number,
+  ) => {
+    const comp = compositions[compIdx];
+    const excludedChar = comp.excludedCharacters[excludedIdx];
+    const raidObj = comp.raids.find(r => r.id === raidId);
+    const oldMember = raidObj?.[teamKey]?.members[memberIdx];
+
+    const updatedRaids = comp.raids.map(r => {
+      if (r.id !== raidId) return r;
+      const team = r[teamKey];
+      if (!team) return r;
+
+      const newMembers = [...team.members];
+      newMembers[memberIdx] = {
+        ...excludedChar,
+        isBot: false,
+        ownerName: excludedChar.ownerName,
+      } as any;
+
+      return recalcRaidStats({ ...r, [teamKey]: { ...team, members: newMembers } });
+    });
+
+    const newExcluded = [...comp.excludedCharacters];
+    newExcluded.splice(excludedIdx, 1);
+    if (oldMember && !('isBot' in oldMember && oldMember.isBot)) {
+      newExcluded.push(memberToExcluded(oldMember));
+    }
+
+    updateComp(compIdx, { ...comp, raids: updatedRaids, excludedCharacters: newExcluded });
+  };
+
+  // 다른 멤버와 교체 (위치 스왑)
+  const handleSwapMembers = (
+    compIdx: number,
+    raidId: number,
+    teamKey: 'team1' | 'team2',
+    memberIdx: number,
+    targetRaidId: number,
+    targetTeamKey: 'team1' | 'team2',
+    targetMemberIdx: number,
+  ) => {
+    const comp = compositions[compIdx];
+
+    // 원본에서 두 멤버 가져오기
+    const sourceRaid = comp.raids.find(r => r.id === raidId)!;
+    const targetRaid = comp.raids.find(r => r.id === targetRaidId)!;
+    const memberA = sourceRaid[teamKey]!.members[memberIdx];
+    const memberB = targetRaid[targetTeamKey]!.members[targetMemberIdx];
+
+    const updatedRaids = comp.raids.map(r => {
+      let updated = { ...r };
+      const isSource = r.id === raidId;
+      const isTarget = r.id === targetRaidId;
+      if (!isSource && !isTarget) return r;
+
+      if (isSource) {
+        const t = { ...updated[teamKey]! };
+        const newMembers = [...t.members];
+        newMembers[memberIdx] = memberB;
+        updated = { ...updated, [teamKey]: { ...t, members: newMembers } };
+      }
+
+      if (isTarget) {
+        const t = { ...updated[targetTeamKey]! };
+        const newMembers = [...t.members];
+        newMembers[targetMemberIdx] = memberA;
+        updated = { ...updated, [targetTeamKey]: { ...t, members: newMembers } };
+      }
+
+      return recalcRaidStats(updated);
+    });
+
+    updateComp(compIdx, { ...comp, raids: updatedRaids });
+  };
+
+  // 공방인원(봇)으로 교체
+  const handleReplaceWithBot = (
+    compIdx: number,
+    raidId: number,
+    teamKey: 'team1' | 'team2',
+    memberIdx: number,
+  ) => {
+    const comp = compositions[compIdx];
+    const raidObj = comp.raids.find(r => r.id === raidId);
+    const oldMember = raidObj?.[teamKey]?.members[memberIdx];
+    if (!oldMember || ('isBot' in oldMember && oldMember.isBot)) return;
+
+    const allBots = comp.raids.flatMap(r =>
+      [...r.team1.members, ...(r.team2?.members || [])].filter(m => 'isBot' in m && m.isBot)
+    );
+    const botIdx = allBots.length + 1;
+
+    const bot: BotCharacter = {
+      isBot: true,
+      nickname: `공방인원${botIdx}`,
+      class_type: oldMember.class_type,
+      combat_power: oldMember.combat_power,
+    };
+
+    const updatedRaids = comp.raids.map(r => {
+      if (r.id !== raidId) return r;
+      const team = r[teamKey];
+      if (!team) return r;
+      const newMembers = [...team.members];
+      newMembers[memberIdx] = bot;
+      return recalcRaidStats({ ...r, [teamKey]: { ...team, members: newMembers } });
+    });
+
+    const newExcluded = [...comp.excludedCharacters, memberToExcluded(oldMember)];
+    updateComp(compIdx, { ...comp, raids: updatedRaids, excludedCharacters: newExcluded });
+  };
+
+  // 공격대 추가
+  const handleAddRaid = (compIdx: number) => {
+    if (!onUpdate) return;
+    const comp = compositions[compIdx];
+    const newRaidId = Math.max(0, ...comp.raids.map(r => r.id)) + 1;
+    const defaultDate = weekDates.length > 0 ? weekDates[0] : '2026-01-01';
+    const defaultSlot = { date: defaultDate, start_time: '21:00', end_time: '22:00' };
+
+    let newRaid: RaidGroup;
+    if (isBri) {
+      const botMembers: RaidMember[] = [];
+      for (let i = 0; i < 4; i++) {
+        botMembers.push({ isBot: true, nickname: `공방인원${i + 1}`, class_type: '딜러', combat_power: 0 });
+      }
+      newRaid = {
+        id: newRaidId,
+        team1: { members: botMembers, avgCombatPower: 0 },
+        avgCombatPower: 0,
+        botCount: 4,
+        timeSlot: defaultSlot,
+      };
+    } else {
+      const team1Bots: RaidMember[] = [
+        { isBot: true, nickname: `공방인원1`, class_type: '호법성', combat_power: 0 },
+        { isBot: true, nickname: `공방인원2`, class_type: '근딜', combat_power: 0 },
+        { isBot: true, nickname: `공방인원3`, class_type: '원딜', combat_power: 0 },
+        { isBot: true, nickname: `공방인원4`, class_type: '원딜', combat_power: 0 },
+      ];
+      const team2Bots: RaidMember[] = [
+        { isBot: true, nickname: `공방인원5`, class_type: '치유성', combat_power: 0 },
+        { isBot: true, nickname: `공방인원6`, class_type: '근딜', combat_power: 0 },
+        { isBot: true, nickname: `공방인원7`, class_type: '원딜', combat_power: 0 },
+        { isBot: true, nickname: `공방인원8`, class_type: '원딜', combat_power: 0 },
+      ];
+      newRaid = {
+        id: newRaidId,
+        team1: { members: team1Bots, avgCombatPower: 0 },
+        team2: { members: team2Bots, avgCombatPower: 0 },
+        avgCombatPower: 0,
+        botCount: 8,
+        timeSlot: defaultSlot,
+      };
+    }
+
+    updateComp(compIdx, { ...comp, raids: [...comp.raids, newRaid] });
   };
 
   return (
@@ -249,9 +833,32 @@ export default function RaidResult({ compositions, onConfirm, raidType }: RaidRe
               <div className="px-4 pb-4 border-t border-gray-100 dark:border-gray-700">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
                   {sortedRaids.map(raid => (
-                    <RaidGroupCard key={raid.id} raid={raid} raidType={raidType} />
+                    <RaidGroupCard
+                      key={raid.id}
+                      raid={raid}
+                      raidType={raidType}
+                      weekDates={weekDates}
+                      registrations={registrations}
+                      comp={onUpdate ? comp : undefined}
+                      onDateChange={onUpdate ? (date) => handleDateChange(idx, raid.id, date) : undefined}
+                      onTimeChange={onUpdate ? (time) => handleTimeChange(idx, raid.id, time) : undefined}
+                      onSwapMember={onUpdate ? (team, mIdx, val) => handleSwap(idx, raid.id, team, mIdx, val) : undefined}
+                    />
                   ))}
                 </div>
+
+                {/* 공격대 추가 버튼 */}
+                {onUpdate && (
+                  <button
+                    onClick={() => handleAddRaid(idx)}
+                    className="mt-4 w-full py-2.5 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-400 transition-colors flex items-center justify-center gap-2 font-medium text-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    {isBri ? '파티 추가' : '공격대 추가'}
+                  </button>
+                )}
 
                 {/* 빠지는 인원 */}
                 {comp.excludedCharacters.length > 0 && (

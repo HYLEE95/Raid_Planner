@@ -104,31 +104,60 @@ function saveLocalConfirmed(confirmed: ConfirmedRaid[]) {
 }
 
 export async function saveConfirmedRaid(confirmed: ConfirmedRaid): Promise<void> {
+  // 항상 localStorage에 저장 (fallback)
+  const all = getLocalConfirmed();
+  const idx = all.findIndex(c => c.id === confirmed.id);
+  if (idx >= 0) all[idx] = confirmed;
+  else all.push(confirmed);
+  saveLocalConfirmed(all);
+
   if (isSupabaseConfigured()) {
-    const { error } = await getSupabase().from('confirmed_raids').upsert(confirmed);
-    if (error) throw error;
-  } else {
-    const all = getLocalConfirmed();
-    const idx = all.findIndex(c => c.id === confirmed.id);
-    if (idx >= 0) all[idx] = confirmed;
-    else all.push(confirmed);
-    saveLocalConfirmed(all);
+    try {
+      const { error } = await getSupabase().from('confirmed_raids').upsert(confirmed);
+      if (error) console.warn('확정 공대 Supabase 저장 실패:', error.message);
+    } catch { /* localStorage에 이미 저장됨 */ }
   }
 }
 
 export async function getConfirmedRaid(weekStart: string, raidType: string): Promise<ConfirmedRaid | null> {
   if (isSupabaseConfigured()) {
-    const { data, error } = await getSupabase()
-      .from('confirmed_raids')
-      .select('*')
-      .eq('week_start', weekStart)
-      .eq('raid_type', raidType)
-      .limit(1);
-    if (error) throw error;
-    return data && data.length > 0 ? data[0] : null;
+    try {
+      const { data, error } = await getSupabase()
+        .from('confirmed_raids')
+        .select('*')
+        .eq('week_start', weekStart)
+        .eq('raid_type', raidType)
+        .limit(1);
+      if (error) {
+        console.warn('확정 공대 로드 실패 (Supabase), localStorage 사용:', error.message);
+        const all = getLocalConfirmed();
+        return all.find(c => c.week_start === weekStart && c.raid_type === raidType) || null;
+      }
+      return data && data.length > 0 ? data[0] : null;
+    } catch {
+      const all = getLocalConfirmed();
+      return all.find(c => c.week_start === weekStart && c.raid_type === raidType) || null;
+    }
   } else {
     const all = getLocalConfirmed();
     return all.find(c => c.week_start === weekStart && c.raid_type === raidType) || null;
+  }
+}
+
+export async function getAllConfirmedRaids(): Promise<ConfirmedRaid[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await getSupabase().from('confirmed_raids').select('*');
+      if (error) {
+        console.warn('확정 공대 로드 실패 (Supabase), localStorage 사용:', error.message);
+        return getLocalConfirmed();
+      }
+      return data || [];
+    } catch {
+      return getLocalConfirmed();
+    }
+  } else {
+    return getLocalConfirmed();
   }
 }
 

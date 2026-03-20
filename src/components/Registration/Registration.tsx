@@ -82,6 +82,9 @@ export default function Registration() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [ownerProfiles, setOwnerProfiles] = useState<DBCharacterProfile[]>([]);
+  const [isNewOwner, setIsNewOwner] = useState(false);
+  const [newOwnerName, setNewOwnerName] = useState('');
+  const [duplicateOwnerError, setDuplicateOwnerError] = useState('');
 
   const isBri = selectedRaid === '브리레흐';
   const classTypes = isBri ? BRI_CLASS_TYPES : RUDRA_CLASS_TYPES;
@@ -95,6 +98,9 @@ export default function Registration() {
       setDateSelections([]);
       setEditId(null);
       setOwnerName('');
+      setIsNewOwner(false);
+      setNewOwnerName('');
+      setDuplicateOwnerError('');
     }
   }, [selectedRaid]);
 
@@ -315,6 +321,7 @@ export default function Registration() {
   const isValid = () => {
     if (!selectedRaid) return false;
     if (!ownerName.trim()) return false;
+    if (duplicateOwnerError) return false;
     const activeChars = characters.filter(c => c.participating);
     if (activeChars.length === 0) return false;
     if (activeChars.some(c => !c.nickname.trim())) return false;
@@ -448,8 +455,13 @@ export default function Registration() {
 
       // 폼 리셋
       setOwnerName('');
+      setIsNewOwner(false);
+      setNewOwnerName('');
+      setDuplicateOwnerError('');
       setCharacters([defaultChar(selectedRaid)]);
       setDateSelections([]);
+      // 프로필 목록 갱신 (신규 작성자가 추가되었으므로)
+      getCharacterProfiles(selectedRaid!).then(setOwnerProfiles).catch(console.error);
     } catch (err) {
       alert('저장 실패: ' + (err as Error).message);
     } finally {
@@ -516,23 +528,74 @@ export default function Registration() {
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
           캐릭터 소유자 선택
         </label>
-        {ownerProfiles.length > 0 ? (
+        {!isNewOwner ? (
           <select
             value={ownerName}
-            onChange={e => handleOwnerSelect(e.target.value)}
+            onChange={e => {
+              const val = e.target.value;
+              if (val === '__new__') {
+                setIsNewOwner(true);
+                setOwnerName('');
+                setNewOwnerName('');
+                setDuplicateOwnerError('');
+                setCharacters([defaultChar(selectedRaid)]);
+                setDateSelections([]);
+                setEditId(null);
+              } else {
+                handleOwnerSelect(val);
+              }
+            }}
             className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
           >
             <option value="">소유자를 선택하세요</option>
             {ownerProfiles.map(p => (
               <option key={p.id} value={p.owner_name}>{p.owner_name}</option>
             ))}
+            <option value="__new__">[신규작성]</option>
           </select>
         ) : (
-          <div className="text-sm text-gray-600 dark:text-gray-400 p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800">
-            등록된 소유주가 없습니다. 먼저 "캐릭터 정보 입력" 메뉴에서 소유주를 등록해주세요.
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newOwnerName}
+                onChange={e => {
+                  const val = e.target.value;
+                  setNewOwnerName(val);
+                  setOwnerName(val);
+                  if (val.trim() && ownerProfiles.some(p => p.owner_name === val.trim())) {
+                    setDuplicateOwnerError('이미 등록된 소유주 이름입니다.');
+                  } else {
+                    setDuplicateOwnerError('');
+                  }
+                }}
+                placeholder="새 소유주 이름 입력"
+                className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200"
+              />
+              <button
+                onClick={() => {
+                  setIsNewOwner(false);
+                  setOwnerName('');
+                  setNewOwnerName('');
+                  setDuplicateOwnerError('');
+                  setCharacters([defaultChar(selectedRaid)]);
+                  setDateSelections([]);
+                  setEditId(null);
+                }}
+                className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                취소
+              </button>
+            </div>
+            {duplicateOwnerError && (
+              <p className="text-sm text-red-500 font-medium">{duplicateOwnerError}</p>
+            )}
           </div>
         )}
       </section>
+
+      {/* 소유자 선택 후에만 캐릭터/날짜/제출 표시 */}
+      {!!(ownerName.trim()) && !duplicateOwnerError && (<>
 
       {/* 캐릭터 목록 */}
       <section className="mb-6">
@@ -930,6 +993,8 @@ export default function Registration() {
 
       {/* 하단 네비게이션 여백 */}
       <div className="h-8" />
+
+      </>)}
 
       </>)}
     </div>
