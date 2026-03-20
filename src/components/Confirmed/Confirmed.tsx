@@ -133,7 +133,6 @@ export default function Confirmed() {
 
   const sortedRaids = confirmed
     ? [...confirmed.composition.raids].sort((a, b) => {
-        if (a.botCount !== b.botCount) return a.botCount - b.botCount;
         const d = a.timeSlot.date.localeCompare(b.timeSlot.date);
         return d !== 0 ? d : a.timeSlot.start_time.localeCompare(b.timeSlot.start_time);
       })
@@ -141,7 +140,7 @@ export default function Confirmed() {
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">공대 확정</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">홈</h1>
 
       {/* 레이드 선택 */}
       <div className="mb-4">
@@ -227,7 +226,7 @@ export default function Confirmed() {
           ) : (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
               <p className="text-lg">확정된 공격대가 없습니다.</p>
-              <p className="text-sm mt-2">홈 화면에서 조합을 선택하여 공대를 확정해주세요.</p>
+              <p className="text-sm mt-2">공격대 배치 화면에서 조합을 선택하여 공대를 확정해주세요.</p>
             </div>
           )}
         </>

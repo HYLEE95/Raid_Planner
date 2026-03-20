@@ -9,9 +9,10 @@ import {
   generateId,
   saveRegistration,
   deleteRegistration,
+  getCharacterProfiles,
 } from '../../lib/storage';
 import WeekPicker from '../WeekPicker/WeekPicker';
-import type { ClassType, TimeSlot, DBRegistration, RaidType } from '../../lib/types';
+import type { ClassType, TimeSlot, DBRegistration, DBCharacterProfile, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
 
 const CLASS_TYPES: ClassType[] = ['근딜', '원딜', '호법성', '치유성'];
@@ -59,6 +60,7 @@ export default function Registration() {
   ]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [ownerProfiles, setOwnerProfiles] = useState<DBCharacterProfile[]>([]);
 
   // 수정 모드: 전달된 데이터로 폼 초기화
   useEffect(() => {
@@ -92,6 +94,27 @@ export default function Registration() {
     // location.state 클리어 (뒤로가기 시 재로드 방지)
     window.history.replaceState({}, '');
   }, [editData]);
+
+  // 레이드 선택 시 소유주 프로필 로드
+  useEffect(() => {
+    if (!selectedRaid) { setOwnerProfiles([]); return; }
+    getCharacterProfiles(selectedRaid).then(setOwnerProfiles).catch(console.error);
+  }, [selectedRaid]);
+
+  const handleOwnerSelect = (name: string) => {
+    setOwnerName(name);
+    if (!name) return;
+    const profile = ownerProfiles.find(p => p.owner_name === name);
+    if (profile) {
+      setCharacters(profile.characters.map(c => ({
+        nickname: c.nickname,
+        class_type: c.class_type,
+        combat_power: c.combat_power,
+        can_clear_raid: c.can_clear_raid,
+        is_underpowered: c.is_underpowered ?? false,
+      })));
+    }
+  };
 
   const weekDates = useMemo(
     () => getWeekDates(new Date(selectedWeek + 'T00:00:00')),
@@ -262,7 +285,7 @@ export default function Registration() {
       if (editId) {
         // 수정 완료 후 홈으로 이동
         setEditId(null);
-        navigate('/');
+        navigate('/raid-compose');
         return;
       }
 
@@ -326,18 +349,27 @@ export default function Registration() {
         />
       </section>
 
-      {/* 소유자 이름 */}
+      {/* 소유자 선택 */}
       <section className="mb-6">
         <label className="block text-sm font-semibold text-gray-700 mb-2">
-          캐릭터 소유자 이름
+          캐릭터 소유자 선택
         </label>
-        <input
-          type="text"
-          value={ownerName}
-          onChange={e => setOwnerName(e.target.value)}
-          placeholder="이름을 입력하세요"
-          className="w-full p-2 border border-gray-300 rounded-lg"
-        />
+        {ownerProfiles.length > 0 ? (
+          <select
+            value={ownerName}
+            onChange={e => handleOwnerSelect(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-lg bg-white"
+          >
+            <option value="">소유자를 선택하세요</option>
+            {ownerProfiles.map(p => (
+              <option key={p.id} value={p.owner_name}>{p.owner_name}</option>
+            ))}
+          </select>
+        ) : (
+          <div className="text-sm text-gray-500 p-3 border border-gray-200 rounded-lg bg-gray-50">
+            등록된 소유주가 없습니다. 먼저 "캐릭터 정보 입력" 메뉴에서 소유주를 등록해주세요.
+          </div>
+        )}
       </section>
 
       {/* 캐릭터 목록 */}

@@ -101,11 +101,11 @@ function buildSlotGroups(registrations: DBRegistration[]): SlotGroup[] {
   return result;
 }
 
-// 딜러(근딜/원딜)만의 평균 전투력
+// 딜러(근딜/원딜)만의 평균 전투력 (항상 3으로 나눔)
 function calcTeamAvg(members: RaidMember[]): number {
   const dealers = members.filter(m => m.class_type === '근딜' || m.class_type === '원딜');
   if (dealers.length === 0) return 0;
-  return dealers.reduce((sum, m) => sum + m.combat_power, 0) / dealers.length;
+  return dealers.reduce((sum, m) => sum + m.combat_power, 0) / 3;
 }
 
 function createBot(classType: ClassType, combatPower: number, idx: number): BotCharacter {
@@ -172,12 +172,41 @@ function scoreComposition(comp: RaidComposition): number {
     if (!raid.team2.members.some(m => m.class_type === '근딜')) score += 200;
   }
 
-  // 서포트 과다 팀 패널티 (1명 초과 시 약한 패널티)
+  // 서포트 과다 팀 패널티 (되도록 한 파티에 여러 서포트 비선호)
   for (const raid of comp.raids) {
     const t1Support = countSupportInTeam(raid.team1.members);
     const t2Support = countSupportInTeam(raid.team2.members);
-    if (t1Support > 1) score += (t1Support - 1) * 100;
-    if (t2Support > 1) score += (t2Support - 1) * 100;
+    if (t1Support > 1) score += (t1Support - 1) * 300;
+    if (t2Support > 1) score += (t2Support - 1) * 300;
+
+    // 서포트 2명 이상이 한 팀에 들어가야 하는 경우, 양 팀 모두 치유성 선호
+    const totalSupport = t1Support + t2Support;
+    if (totalSupport >= 3) {
+      const t1Healers = raid.team1.members.filter(m => m.class_type === '치유성').length;
+      const t2Healers = raid.team2.members.filter(m => m.class_type === '치유성').length;
+      // 양 팀 모두 치유성이 있으면 보너스 (패널티 감소)
+      if (t1Healers >= 1 && t2Healers >= 1) score -= 150;
+      // 한 쪽에만 치유성이 몰려 있으면 패널티
+      if (t1Healers === 0 || t2Healers === 0) score += 200;
+    }
+  }
+
+  // 전투력이 강한 딜러는 호법성과 같은 팀에 있으면 보너스
+  for (const raid of comp.raids) {
+    const allDealers = [...raid.team1.members, ...raid.team2.members]
+      .filter(m => (m.class_type === '근딜' || m.class_type === '원딜') && !('isBot' in m && m.isBot));
+    if (allDealers.length === 0) continue;
+    const avgPower = allDealers.reduce((s, m) => s + m.combat_power, 0) / allDealers.length;
+
+    for (const team of [raid.team1, raid.team2]) {
+      const hasTank = team.members.some(m => m.class_type === '호법성' && !('isBot' in m && m.isBot));
+      if (!hasTank) continue;
+      const strongDealers = team.members.filter(
+        m => (m.class_type === '근딜' || m.class_type === '원딜') && !('isBot' in m && m.isBot) && m.combat_power > avgPower
+      );
+      // 강한 딜러가 호법성과 같은 팀 → 보너스
+      score -= strongDealers.length * 100;
+    }
   }
 
   // 스펙 미달 인원과 봇이 같은 공격대에 있으면 큰 패널티
@@ -304,6 +333,14 @@ function tryFormRaid(
   const teamDpsSum = (team: RaidMember[]) =>
     team.filter(m => m.class_type === '근딜' || m.class_type === '원딜').reduce((s, m) => s + m.combat_power, 0);
 
+  // 호법성이 있는 팀 확인 (강한 딜러 배치 선호)
+  const team1HasTank = team1Members.some(m => m.class_type === '호법성' && !('isBot' in m && m.isBot));
+
+  // 평균 전투력 계산 (강한 딜러 판단 기준)
+  const avgDpsPower = remainingDps.length > 0
+    ? remainingDps.reduce((s, c) => s + c.combat_power, 0) / remainingDps.length
+    : 0;
+
   for (const char of remainingDps) {
     if (team1Members.length >= 4 && team2Members.length >= 4) break;
     if (isOwnerInRaid(char.owner_id)) continue;
@@ -312,7 +349,11 @@ function tryFormRaid(
     const can2 = team2Members.length < 4;
 
     if (can1 && can2) {
-      if (teamDpsSum(team1Members) <= teamDpsSum(team2Members)) {
+      // 전투력이 강한 딜러는 호법성이 있는 팀에 배치 선호
+      const isStrong = char.combat_power > avgDpsPower;
+      if (isStrong && team1HasTank) {
+        addToTeam(team1Members, char);
+      } else if (teamDpsSum(team1Members) <= teamDpsSum(team2Members)) {
         addToTeam(team1Members, char);
       } else {
         addToTeam(team2Members, char);
@@ -338,13 +379,29 @@ function tryFormRaid(
     const can2 = team2Members.length < 4 && char.class_type !== '호법성'; // Team2에 호법성 불가
 
     if (can1 && can2) {
-      // 서포트가 적은 팀에 배치
       const t1Support = countSupportInTeam(team1Members);
       const t2Support = countSupportInTeam(team2Members);
-      if (t1Support <= t2Support) {
-        addToTeam(team1Members, char);
+      const t1Healers = team1Members.filter(m => m.class_type === '치유성').length;
+      const t2Healers = team2Members.filter(m => m.class_type === '치유성').length;
+
+      if (char.class_type === '치유성') {
+        // 치유성: 양 팀에 치유성이 없는 팀 우선 배치
+        if (t1Healers === 0 && t2Healers > 0) {
+          addToTeam(team1Members, char);
+        } else if (t2Healers === 0 && t1Healers > 0) {
+          addToTeam(team2Members, char);
+        } else if (t1Support <= t2Support) {
+          addToTeam(team1Members, char);
+        } else {
+          addToTeam(team2Members, char);
+        }
       } else {
-        addToTeam(team2Members, char);
+        // 호법성: 서포트가 적은 팀에 배치
+        if (t1Support <= t2Support) {
+          addToTeam(team1Members, char);
+        } else {
+          addToTeam(team2Members, char);
+        }
       }
     } else if (can1) {
       addToTeam(team1Members, char);
@@ -867,7 +924,7 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
     }
   }
 
-  // 점수순 정렬
+  // 점수순 정렬 (제외 인원 적은 순 → 전투력 균등 순)
   unique.sort((a, b) => a.score - b.score);
-  return unique.slice(0, 10);
+  return unique.slice(0, 4);
 }

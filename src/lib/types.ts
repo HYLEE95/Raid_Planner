@@ -109,6 +109,21 @@ export interface ConfirmedRaid {
   confirmed_at: string;
 }
 
+// 소유주별 캐릭터 프로필 (레이드별 저장)
+export interface DBCharacterProfile {
+  id: string;
+  owner_name: string;
+  raid_type: RaidType;
+  characters: {
+    nickname: string;
+    class_type: ClassType;
+    combat_power: number;
+    can_clear_raid: boolean;
+    is_underpowered: boolean;
+  }[];
+  created_at: string;
+}
+
 // DB에 저장되는 형태
 export interface DBRegistration {
   id: string;

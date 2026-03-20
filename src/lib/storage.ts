@@ -1,5 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabase';
-import type { DBRegistration, TimeSlot, ConfirmedRaid } from './types';
+import type { DBRegistration, TimeSlot, ConfirmedRaid, DBCharacterProfile } from './types';
 
 const STORAGE_KEY = 'raid-planner-registrations';
 const CONFIRMED_KEY = 'raid-planner-confirmed';
@@ -138,6 +138,55 @@ export async function deleteConfirmedRaid(id: string): Promise<void> {
   } else {
     const all = getLocalConfirmed().filter(c => c.id !== id);
     saveLocalConfirmed(all);
+  }
+}
+
+// === 캐릭터 프로필 관련 ===
+const PROFILE_KEY = 'raid-planner-profiles';
+
+function getLocalProfiles(): DBCharacterProfile[] {
+  const data = localStorage.getItem(PROFILE_KEY);
+  return data ? JSON.parse(data) : [];
+}
+
+function saveLocalProfiles(profiles: DBCharacterProfile[]) {
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profiles));
+}
+
+export async function saveCharacterProfile(profile: DBCharacterProfile): Promise<void> {
+  if (isSupabaseConfigured()) {
+    const { error } = await getSupabase().from('character_profiles').upsert(profile);
+    if (error) throw error;
+  } else {
+    const all = getLocalProfiles();
+    const idx = all.findIndex(p => p.id === profile.id);
+    if (idx >= 0) all[idx] = profile;
+    else all.push(profile);
+    saveLocalProfiles(all);
+  }
+}
+
+export async function getCharacterProfiles(raidType?: string): Promise<DBCharacterProfile[]> {
+  if (isSupabaseConfigured()) {
+    let query = getSupabase().from('character_profiles').select('*');
+    if (raidType) query = query.eq('raid_type', raidType);
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  } else {
+    let profiles = getLocalProfiles();
+    if (raidType) profiles = profiles.filter(p => p.raid_type === raidType);
+    return profiles;
+  }
+}
+
+export async function deleteCharacterProfile(id: string): Promise<void> {
+  if (isSupabaseConfigured()) {
+    const { error } = await getSupabase().from('character_profiles').delete().eq('id', id);
+    if (error) throw error;
+  } else {
+    const all = getLocalProfiles().filter(p => p.id !== id);
+    saveLocalProfiles(all);
   }
 }
 

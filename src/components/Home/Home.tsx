@@ -98,7 +98,7 @@ export default function Home() {
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">공격대 구성</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">공격대 배치</h1>
 
       {/* 레이드 선택 */}
       <div className="mb-4">

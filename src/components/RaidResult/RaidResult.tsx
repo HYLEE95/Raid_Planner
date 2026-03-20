@@ -146,9 +146,8 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
       {compositions.map((comp, idx) => {
         const isExpanded = expandedIndex === idx;
 
-        // 봇 없는 공격대 먼저, 같은 봇 수면 시간순
+        // 날짜/시간 빠른순 정렬
         const sortedRaids = [...comp.raids].sort((a, b) => {
-          if (a.botCount !== b.botCount) return a.botCount - b.botCount;
           const d = a.timeSlot.date.localeCompare(b.timeSlot.date);
           return d !== 0 ? d : a.timeSlot.start_time.localeCompare(b.timeSlot.start_time);
         });
@@ -156,9 +155,12 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
         return (
           <div key={idx} className="border border-gray-200 rounded-lg bg-white overflow-hidden">
             {/* 아코디언 헤더 */}
-            <button
+            <div
               onClick={() => toggleExpand(idx)}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left cursor-pointer"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpand(idx); } }}
             >
               <div className="flex items-center gap-3">
                 <span className="text-base font-bold text-gray-900">조합 {idx + 1}</span>
@@ -190,7 +192,7 @@ export default function RaidResult({ compositions, onConfirm }: RaidResultProps)
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
               </div>
-            </button>
+            </div>
 
             {/* 아코디언 콘텐츠 */}
             {isExpanded && (
