@@ -483,17 +483,26 @@ function tryFormRaid(
           addToTeam(team2Members, char);
         }
       } else {
-        // 호법성: 이미 호법성이 있는 팀 회피
+        // 호법성: 이미 호법성이 있는 팀에는 절대 배치하지 않음
         const t1Tanks = team1Members.filter(m => m.class_type === '호법성').length;
         if (t1Tanks === 0 && can1) {
           addToTeam(team1Members, char);
-        } else if (can1 && t1Support <= t2Support) {
-          addToTeam(team1Members, char);
         }
-        // 호법성은 2팀에 배치하지 않음 (기존 규칙 유지)
+        // t1에 이미 호법성이 있으면 배치하지 않음 (제외 인원으로 빠짐)
+        // 호법성은 2팀에도 배치하지 않음 (기존 규칙 유지)
       }
-    } else if (can1) {
+    } else if (can1 && can2) {
+      // 이미 위에서 처리됨 (도달 불가)
       addToTeam(team1Members, char);
+    } else if (can1) {
+      // 호법성이면 이미 있는지 체크
+      if (char.class_type === '호법성') {
+        const t1Tanks = team1Members.filter(m => m.class_type === '호법성').length;
+        if (t1Tanks === 0) addToTeam(team1Members, char);
+        // 이미 있으면 배치하지 않음
+      } else {
+        addToTeam(team1Members, char);
+      }
     } else if (can2) {
       addToTeam(team2Members, char);
     }
