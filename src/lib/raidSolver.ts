@@ -272,6 +272,26 @@ function scoreComposition(comp: RaidComposition, raidType: RaidType = '루드라
     }
   }
 
+  // 소유주별 참여 여부: 한번도 참여 못한 소유주가 있으면 큰 패널티
+  const participatingOwners = new Set<string>();
+  for (const raid of comp.raids) {
+    for (const m of [...raid.team1.members, ...raid.team2.members]) {
+      if (!('isBot' in m && m.isBot) && 'owner_id' in m) {
+        participatingOwners.add((m as any).owner_id);
+      }
+    }
+  }
+  const excludedOwners = new Set<string>();
+  for (const ex of comp.excludedCharacters) {
+    if ('owner_id' in ex) excludedOwners.add((ex as any).owner_id);
+  }
+  // 제외된 소유주 중 한번도 참여하지 못한 소유주
+  for (const ownerId of excludedOwners) {
+    if (!participatingOwners.has(ownerId)) {
+      score += 15000; // 한번도 참여 못한 소유주 큰 패널티
+    }
+  }
+
   // 제외 우선순위
   for (const ex of comp.excludedCharacters) {
     if ('is_underpowered' in ex && (ex as any).is_underpowered) {
