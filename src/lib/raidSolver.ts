@@ -1311,13 +1311,13 @@ function generateCompositions(slotGroups: SlotGroup[], maxBots: number, raidType
   if (inclusive) allResults.push(inclusive);
 
   // 최대 공격대 수 전략 (다양한 seed)
-  for (let seed = 0; seed < 200; seed++) {
+  for (let seed = 0; seed < 1000; seed++) {
     const comp = maxRaidsComposition(slotGroups, maxBots, seed * 3571, raidType);
     if (comp) allResults.push(comp);
   }
 
-  // 셔플 기반 다양한 조합 생성 (500회)
-  for (let seed = 1; seed <= 500; seed++) {
+  // 셔플 기반 다양한 조합 생성 (3000회)
+  for (let seed = 1; seed <= 3000; seed++) {
     const comp = shuffledComposition(slotGroups, maxBots, seed * 7919, raidType);
     if (comp) allResults.push(comp);
   }
@@ -1557,8 +1557,12 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
     }
   }
 
-  // 점수순 정렬 (점수에 제외 인원, 소유주 미참여 등 모두 반영됨)
-  unique.sort((a, b) => a.score - b.score);
+  // 제외 인원 적은 순 우선, 동일 시 점수순 정렬
+  unique.sort((a, b) => {
+    const exDiff = a.excludedCharacters.length - b.excludedCharacters.length;
+    if (exDiff !== 0) return exDiff;
+    return a.score - b.score;
+  });
   return unique.slice(0, 5);
 }
 
@@ -1991,8 +1995,8 @@ export function solveBriRaidComposition(registrations: DBRegistration[], blocked
 
   const allResults: RaidComposition[] = [];
 
-  // 다양한 전략으로 조합 생성 (300회 셔플)
-  for (let seed = 0; seed < 300; seed++) {
+  // 다양한 전략으로 조합 생성 (1000회 셔플)
+  for (let seed = 0; seed < 1000; seed++) {
     const comp = solveBriComposition(slotGroups, seed * 7919);
     if (comp) allResults.push(comp);
   }

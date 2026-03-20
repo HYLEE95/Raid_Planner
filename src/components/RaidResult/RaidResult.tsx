@@ -145,9 +145,28 @@ function buildSwapOptions(
   const options: SwapOption[] = [];
   const isBri = raidType === '브리레흐';
 
-  // 1. 빠지는 인원
+  // 현재 공격대/파티에서 교체 대상 제외한 나머지 소유주 목록 (소유주 중복 방지)
+  const currentRaid = comp.raids.find(r => r.id === currentRaidId);
+  const sameRaidOwners = new Set<string>();
+  if (currentRaid) {
+    const allMembers = [...currentRaid.team1.members, ...(currentRaid.team2?.members || [])];
+    allMembers.forEach((m, _i) => {
+      // 교체 대상 자신은 제외 (자신이 빠지니까)
+      const isCurrentMember = (() => {
+        const team = currentRaid[currentTeamKey];
+        return team && team.members[currentMemberIdx] === m;
+      })();
+      if (isCurrentMember) return;
+      if (!('isBot' in m && m.isBot) && 'ownerName' in m) {
+        sameRaidOwners.add((m as any).ownerName);
+      }
+    });
+  }
+
+  // 1. 빠지는 인원 (같은 소유주가 이미 해당 공격대에 있으면 제외)
   for (let i = 0; i < comp.excludedCharacters.length; i++) {
     const char = comp.excludedCharacters[i];
+    if (sameRaidOwners.has(char.ownerName)) continue;
     let label = `${char.nickname} (${char.ownerName}) - ${char.class_type}`;
     if (!isBri && char.combat_power > 0) label += ` ${char.combat_power}K`;
     options.push({ label, value: `ex:${i}`, group: '빠지는 인원' });
@@ -166,6 +185,13 @@ function buildSwapOptions(
         if (raid.id === currentRaidId && teamKey === currentTeamKey && mIdx === currentMemberIdx) return;
 
         const isBot = 'isBot' in member && member.isBot;
+
+        // 같은 공격대 내 다른 멤버와의 교체는 소유주 제한 없음 (위치 스왑)
+        // 다른 공격대에서 가져올 때만 소유주 중복 체크
+        if (raid.id !== currentRaidId && !isBot && 'ownerName' in member) {
+          if (sameRaidOwners.has((member as any).ownerName)) return;
+        }
+
         const ownerInfo = !isBot && 'ownerName' in member ? ` (${(member as any).ownerName})` : '';
         let label = `${member.nickname}${ownerInfo} - ${member.class_type}`;
         if (!isBri && member.combat_power > 0) label += ` ${member.combat_power}K`;
@@ -574,7 +600,7 @@ interface RaidResultProps {
 }
 
 export default function RaidResult({ compositions, onConfirm, onUpdate, raidType, weekStart, registrations }: RaidResultProps) {
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [expandedSet, setExpandedSet] = useState<Set<number>>(new Set());
 
   const weekDates = weekStart ? getWeekDates(weekStart) : [];
   const isBri = raidType === '브리레흐';
@@ -589,7 +615,12 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
   }
 
   const toggleExpand = (idx: number) => {
-    setExpandedIndex(expandedIndex === idx ? null : idx);
+    setExpandedSet(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
   };
 
   // 조합 업데이트 헬퍼
@@ -893,7 +924,7 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
   return (
     <div className="space-y-3">
       {compositions.map((comp, idx) => {
-        const isExpanded = expandedIndex === idx;
+        const isExpanded = expandedSet.has(idx);
 
         // 자동 배치 → 수동 추가 순, 각각 날짜/시간 빠른순 정렬
         const sortedRaids = [...comp.raids].sort((a, b) => {
