@@ -278,11 +278,23 @@ export default function Home() {
                     <div>
                       <span className="font-medium text-gray-800 dark:text-gray-200">{reg.owner_name}</span>
                       <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                        캐릭터: {reg.characters.map(c =>
-                          selectedRaid === '브리레흐'
-                            ? `${c.nickname}(${c.class_type})`
-                            : `${c.nickname}(${c.class_type}/${c.combat_power}K)`
-                        ).join(', ')}
+                        캐릭터: {reg.characters.map((c, ci) => (
+                          <span key={ci}>
+                            {ci > 0 && ', '}
+                            {selectedRaid === '브리레흐'
+                              ? `${c.nickname}(${c.class_type})`
+                              : `${c.nickname}(${c.class_type}/${c.combat_power}K)`}
+                            {selectedRaid === '브리레흐' && c.has_destruction_robe && (
+                              <span className="ml-1 px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700">파롭</span>
+                            )}
+                            {selectedRaid === '브리레흐' && c.is_blast_lancer && (
+                              <span className="ml-1 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-[10px] rounded border border-blue-200 dark:border-blue-700">블랜</span>
+                            )}
+                            {selectedRaid === '브리레흐' && c.has_soul_weapon && (
+                              <span className="ml-1 px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700">소울</span>
+                            )}
+                          </span>
+                        ))}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">

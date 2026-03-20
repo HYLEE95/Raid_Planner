@@ -31,6 +31,7 @@ interface CharacterForm {
   is_underpowered: boolean;
   // 브리레흐 전용
   has_destruction_robe: boolean;
+  is_blast_lancer: boolean;
   has_soul_weapon: boolean;
   desired_clears: number;
 }
@@ -42,6 +43,7 @@ const defaultChar = (raidType?: RaidType | null): CharacterForm => ({
   can_clear_raid: false,
   is_underpowered: false,
   has_destruction_robe: false,
+  is_blast_lancer: false,
   has_soul_weapon: false,
   desired_clears: 3,
 });
@@ -120,6 +122,7 @@ export default function CharacterInput() {
         };
         if (isBri) {
           base.has_destruction_robe = c.has_destruction_robe;
+          base.is_blast_lancer = c.is_blast_lancer;
           base.has_soul_weapon = c.has_soul_weapon;
           base.desired_clears = c.desired_clears;
         } else {
@@ -185,6 +188,7 @@ export default function CharacterInput() {
       can_clear_raid: c.can_clear_raid ?? false,
       is_underpowered: c.is_underpowered ?? false,
       has_destruction_robe: c.has_destruction_robe ?? false,
+      is_blast_lancer: c.is_blast_lancer ?? false,
       has_soul_weapon: c.has_soul_weapon ?? false,
       desired_clears: c.desired_clears ?? 3,
     })));
@@ -219,7 +223,8 @@ export default function CharacterInput() {
   const formatCharInfo = (c: DBCharacterProfile['characters'][0]) => {
     if (isBri) {
       const tags = [];
-      if (c.has_destruction_robe) tags.push('로브');
+      if (c.has_destruction_robe) tags.push('파롭');
+      if (c.is_blast_lancer) tags.push('블랜');
       if (c.has_soul_weapon) tags.push('소울');
       return `${c.nickname}(${c.class_type}${tags.length ? '/' + tags.join('/') : ''})`;
     }
@@ -449,14 +454,25 @@ export default function CharacterInput() {
                           {isBri && (
                             <>
                               <div className="flex flex-col gap-2 justify-end">
-                                <label className="flex items-center gap-2 cursor-pointer">
+                                <label className={`flex items-center gap-2 ${char.is_blast_lancer ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
                                   <input
                                     type="checkbox"
                                     checked={char.has_destruction_robe}
                                     onChange={e => updateCharacter(idx, 'has_destruction_robe', e.target.checked)}
+                                    disabled={char.is_blast_lancer}
                                     className="w-4 h-4 text-purple-600"
                                   />
                                   <span className="text-sm text-gray-700 dark:text-gray-300">파멸의 로브 보유</span>
+                                </label>
+                                <label className={`flex items-center gap-2 ${char.has_destruction_robe || char.class_type !== '딜러' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={!!char.is_blast_lancer}
+                                    onChange={e => updateCharacter(idx, 'is_blast_lancer', e.target.checked)}
+                                    disabled={char.has_destruction_robe || char.class_type !== '딜러'}
+                                    className="w-4 h-4 text-blue-600"
+                                  />
+                                  <span className="text-sm text-gray-700 dark:text-gray-300">블래스트 랜서</span>
                                 </label>
                                 <label className="flex items-center gap-2 cursor-pointer">
                                   <input

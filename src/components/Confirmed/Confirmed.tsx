@@ -59,7 +59,10 @@ function MemberCard({ member, raidType }: { member: RaidMember; raidType?: RaidT
         <span className="text-xs text-gray-500 ml-auto shrink-0 whitespace-nowrap">{member.combat_power}K</span>
       )}
       {isBri && !isBot && 'has_destruction_robe' in member && (member as any).has_destruction_robe && (
-        <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700 shrink-0 whitespace-nowrap">로브</span>
+        <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700 shrink-0 whitespace-nowrap">파롭</span>
+      )}
+      {isBri && !isBot && 'is_blast_lancer' in member && (member as any).is_blast_lancer && (
+        <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-[10px] rounded border border-blue-200 dark:border-blue-700 shrink-0 whitespace-nowrap">블랜</span>
       )}
       {isBri && !isBot && 'has_soul_weapon' in member && (member as any).has_soul_weapon && (
         <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700 shrink-0 whitespace-nowrap">소울</span>

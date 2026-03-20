@@ -138,6 +138,7 @@ export interface DBCharacterProfile {
     is_underpowered?: boolean;
     // 브리레흐 전용
     has_destruction_robe?: boolean;
+    is_blast_lancer?: boolean;
     has_soul_weapon?: boolean;
     desired_clears?: number;
   }[];
@@ -157,6 +158,7 @@ export interface DBRegistration {
     is_underpowered?: boolean;
     // 브리레흐 전용
     has_destruction_robe?: boolean;
+    is_blast_lancer?: boolean;
     has_soul_weapon?: boolean;
     desired_clears?: number;
   }[];
