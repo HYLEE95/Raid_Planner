@@ -458,9 +458,10 @@ function tryFormRaid(
   }
 
   // 나머지 배치 (DPS 우선, 전투력 균형 기반 + 근딜/원딜 분산)
+  // 봇 공격대(maxBotsPerRaid > 0)일 때는 약한 캐릭터 우선 → 강한 캐릭터를 봇 없는 공격대에 남김
   const remainingDps = eligible
     .filter(c => !usedChars.find(u => u.id === c.id) && !isOwnerInRaid(c.owner_id) && (c.class_type === '근딜' || c.class_type === '원딜'))
-    .sort((a, b) => b.combat_power - a.combat_power);
+    .sort((a, b) => maxBotsPerRaid > 0 ? a.combat_power - b.combat_power : b.combat_power - a.combat_power);
 
   const teamDpsSum = (team: RaidMember[]) =>
     team.filter(m => m.class_type === '근딜' || m.class_type === '원딜').reduce((s, m) => s + m.combat_power, 0);
@@ -1525,51 +1526,189 @@ function tryIncludeExcludedOwners(comp: RaidComposition, slotGroups: SlotGroup[]
 }
 
 // ==========================================
+// 같은 시간대 내 공격대 간 전투력 균등화 (초기 배치 단계)
+// 시간대가 같으므로 캐릭터 시간대 충돌 없이 자유롭게 스왑 가능
+// ==========================================
+function balanceRaidsInSameSlot(comp: RaidComposition, raidType: RaidType): RaidComposition {
+  if (raidType === '브리레흐') return comp;
+  const result: RaidComposition = JSON.parse(JSON.stringify(comp));
+
+  // 시간대별 그룹핑
+  const slotKey = (ts: TimeSlot) => `${ts.date}_${ts.start_time}_${ts.end_time}`;
+  const bySlot = new Map<string, RaidGroup[]>();
+  for (const raid of result.raids) {
+    const key = slotKey(raid.timeSlot);
+    if (!bySlot.has(key)) bySlot.set(key, []);
+    bySlot.get(key)!.push(raid);
+  }
+
+  const isSupport = (ct: string) => ct === '치유성' || ct === '호법성';
+
+  for (const slotRaids of bySlot.values()) {
+    // 봇 없는 공격대끼리만 밸런싱
+    const noBotRaids = slotRaids.filter(r => r.botCount === 0 && r.team2);
+    if (noBotRaids.length < 2) continue;
+
+    // 목적함수: 이 시간대 내 모든 팀 평균의 분산 최소화 + 평균 최대화
+    const calcSlotObj = (): number => {
+      const avgs: number[] = [];
+      for (const r of noBotRaids) {
+        avgs.push(r.team1.avgCombatPower);
+        if (r.team2) avgs.push(r.team2.avgCombatPower);
+      }
+      if (avgs.length < 2) return 0;
+      const mean = avgs.reduce((a, b) => a + b, 0) / avgs.length;
+      const variance = avgs.reduce((s, v) => s + (v - mean) ** 2, 0) / avgs.length;
+      return variance * 10 - mean;
+    };
+
+    const recalcRaid = (raid: RaidGroup) => {
+      raid.team1.avgCombatPower = calcTeamAvg(raid.team1.members);
+      if (raid.team2) raid.team2.avgCombatPower = calcTeamAvg(raid.team2.members);
+      raid.avgCombatPower = raid.team2
+        ? (raid.team1.avgCombatPower + raid.team2.avgCombatPower) / 2
+        : raid.team1.avgCombatPower;
+    };
+
+    const hasOwnerConflictInRaid = (raid: RaidGroup, member: RaidMember, excludeMember: RaidMember): boolean => {
+      if ('isBot' in member && member.isBot) return false;
+      const memberOwner = 'owner_id' in member ? (member as any).owner_id : null;
+      if (!memberOwner) return false;
+      const allMembers = [...raid.team1.members, ...(raid.team2?.members || [])];
+      return allMembers.some(m =>
+        m !== excludeMember && !('isBot' in m && m.isBot) &&
+        'owner_id' in m && (m as any).owner_id === memberOwner
+      );
+    };
+
+    let bestObj = calcSlotObj();
+
+    for (let iter = 0; iter < 200; iter++) {
+      let improved = false;
+
+      for (let ri = 0; ri < noBotRaids.length; ri++) {
+        for (let rj = ri + 1; rj < noBotRaids.length; rj++) {
+          const rA = noBotRaids[ri];
+          const rB = noBotRaids[rj];
+
+          // 모든 팀 조합에 대해 스왑 시도
+          const teamPairs: [RaidMember[], RaidMember[]][] = [
+            [rA.team1.members, rB.team1.members],
+          ];
+          if (rA.team2 && rB.team2) teamPairs.push([rA.team2.members, rB.team2.members]);
+          if (rB.team2) teamPairs.push([rA.team1.members, rB.team2.members]);
+          if (rA.team2) teamPairs.push([rA.team2.members, rB.team1.members]);
+
+          for (const [membersA, membersB] of teamPairs) {
+            for (let i = 0; i < membersA.length; i++) {
+              for (let j = 0; j < membersB.length; j++) {
+                const mA = membersA[i];
+                const mB = membersB[j];
+                if ('isBot' in mA && mA.isBot) continue;
+                if ('isBot' in mB && mB.isBot) continue;
+
+                // 같은 역할군끼리만 스왑 (서포트↔서포트, DPS↔DPS)
+                if (isSupport(mA.class_type) !== isSupport(mB.class_type)) continue;
+
+                // DPS 간 스왑 시 근딜/원딜 최소 1명 유지 확인
+                if (!isSupport(mA.class_type)) {
+                  if (mA.class_type !== mB.class_type) {
+                    const aOthers = membersA.filter((m, idx) => idx !== i && m.class_type === mA.class_type).length;
+                    const bOthers = membersB.filter((m, idx) => idx !== j && m.class_type === mB.class_type).length;
+                    if (aOthers === 0 && mB.class_type !== mA.class_type) continue;
+                    if (bOthers === 0 && mA.class_type !== mB.class_type) continue;
+                  }
+                }
+
+                // 소유주 충돌 체크
+                if (hasOwnerConflictInRaid(rA, mB, mA)) continue;
+                if (hasOwnerConflictInRaid(rB, mA, mB)) continue;
+
+                // 스왑 실행
+                membersA[i] = mB;
+                membersB[j] = mA;
+                recalcRaid(rA);
+                recalcRaid(rB);
+
+                const newObj = calcSlotObj();
+                if (newObj < bestObj - 0.01) {
+                  bestObj = newObj;
+                  improved = true;
+                } else {
+                  // 되돌리기
+                  membersA[i] = mA;
+                  membersB[j] = mB;
+                  recalcRaid(rA);
+                  recalcRaid(rB);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      if (!improved) break;
+    }
+  }
+
+  result.score = scoreComposition(result, raidType);
+  return result;
+}
+
+// ==========================================
 // 전투력 균등화 후처리 (Hill Climbing)
 // 모든 팀의 평균 전투력 분산을 최소화하기 위해
 // 공격대 간, 팀 간 멤버를 교환
 // ==========================================
-function optimizeBalance(comp: RaidComposition, raidType: RaidType): RaidComposition {
+function optimizeBalance(comp: RaidComposition, raidType: RaidType, slotGroups?: SlotGroup[]): RaidComposition {
   const result: RaidComposition = JSON.parse(JSON.stringify(comp));
   const isBri = raidType === '브리레흐';
-  if (isBri) return result; // 브리레흐는 전투력 기반 밸런스 불필요
+  if (isBri) return result;
 
-  // 봇 없는 공격대만 대상 (봇 공격대 내부 스왑은 의미 없음)
-  const targetRaids = result.raids.filter(r => r.botCount === 0 && r.team2);
-  if (targetRaids.length < 1) return result;
+  const noBotRaids = result.raids.filter(r => r.botCount === 0 && r.team2);
+  const botRaids = result.raids.filter(r => r.botCount > 0 && r.team2);
+  if (noBotRaids.length < 1) return result;
 
-  // 팀 분산 계산 함수
-  const calcVariance = (): number => {
+  // 캐릭터가 특정 시간대에 참여 가능한지 확인
+  const canParticipateInSlot = (member: RaidMember, targetSlot: TimeSlot): boolean => {
+    if ('isBot' in member && member.isBot) return true; // 봇은 제한 없음
+    if (!slotGroups) return true; // slotGroups 없으면 검증 불가, 허용
+    const charId = 'id' in member ? (member as any).id : null;
+    if (!charId) return true;
+    // 해당 캐릭터가 targetSlot과 겹치는 시간대에 등록되어 있는지 확인
+    return slotGroups.some(sg =>
+      slotsOverlapWithDuration(sg.slot, targetSlot) &&
+      sg.characters.some(c => c.id === charId)
+    );
+  };
+
+  // 봇 없는 공격대 팀 분산 + 평균 최대화 목적함수
+  // 분산이 작고 평균이 높을수록 좋음
+  const calcObjective = (): number => {
     const avgs: number[] = [];
-    for (const r of targetRaids) {
+    for (const r of noBotRaids) {
       avgs.push(r.team1.avgCombatPower);
       if (r.team2) avgs.push(r.team2.avgCombatPower);
     }
     if (avgs.length < 2) return 0;
     const mean = avgs.reduce((a, b) => a + b, 0) / avgs.length;
-    return avgs.reduce((s, v) => s + (v - mean) ** 2, 0) / avgs.length;
+    const variance = avgs.reduce((s, v) => s + (v - mean) ** 2, 0) / avgs.length;
+    // 목적: 분산 최소화 + 평균 최대화 (분산에 더 큰 가중치)
+    return variance * 10 - mean;
   };
 
-  // 교환 유효성 검사: 서포트 규칙 위반 없는지
+  const isSupport = (ct: string) => ct === '치유성' || ct === '호법성';
+
   const isValidSwap = (teamMembers: RaidMember[], incoming: RaidMember, outgoing: RaidMember): boolean => {
-    // 같은 클래스면 항상 OK
     if (incoming.class_type === outgoing.class_type) return true;
-
-    const isSupport = (ct: string) => ct === '치유성' || ct === '호법성';
-    // 서포트 ↔ DPS 교환 방지
     if (isSupport(incoming.class_type) !== isSupport(outgoing.class_type)) return false;
-
-    // DPS 간 교환: 남은 타입 체크
     const remaining = teamMembers.filter(m => m !== outgoing);
     remaining.push(incoming);
-    const hasMelee = remaining.some(m => m.class_type === '근딜');
-    const hasRanged = remaining.some(m => m.class_type === '원딜');
-    if (!hasMelee || !hasRanged) return false;
-
+    if (!remaining.some(m => m.class_type === '근딜')) return false;
+    if (!remaining.some(m => m.class_type === '원딜')) return false;
     return true;
   };
 
-  // 소유주 중복 검사
   const hasOwnerConflict = (raid: RaidGroup, member: RaidMember, excludeMember: RaidMember): boolean => {
     if ('isBot' in member && member.isBot) return false;
     const memberOwner = 'owner_id' in member ? (member as any).owner_id : null;
@@ -1581,7 +1720,6 @@ function optimizeBalance(comp: RaidComposition, raidType: RaidType): RaidComposi
     );
   };
 
-  // 평균 재계산 헬퍼
   const recalc = (raid: RaidGroup) => {
     raid.team1.avgCombatPower = calcTeamAvg(raid.team1.members);
     if (raid.team2) raid.team2.avgCombatPower = calcTeamAvg(raid.team2.members);
@@ -1590,91 +1728,105 @@ function optimizeBalance(comp: RaidComposition, raidType: RaidType): RaidComposi
       : raid.team1.avgCombatPower;
   };
 
-  let bestVariance = calcVariance();
-  const MAX_ITERATIONS = 500;
+  // 스펙미달+봇 공존 체크
+  const wouldViolateUnderpoweredBot = (raid: RaidGroup): boolean => {
+    if (raid.botCount === 0) return false;
+    const allMembers = [...raid.team1.members, ...(raid.team2?.members || [])];
+    return allMembers.some(m =>
+      !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered
+    );
+  };
 
-  for (let iter = 0; iter < MAX_ITERATIONS; iter++) {
+  let bestObj = calcObjective();
+
+  // 스왑 시도 함수
+  const trySwap = (membersA: RaidMember[], membersB: RaidMember[], rA: RaidGroup, rB: RaidGroup): boolean => {
+    let swapped = false;
+    // 두 공격대의 시간대가 다른지 확인
+    const differentSlot = rA.timeSlot.date !== rB.timeSlot.date ||
+      rA.timeSlot.start_time !== rB.timeSlot.start_time ||
+      rA.timeSlot.end_time !== rB.timeSlot.end_time;
+
+    for (let i = 0; i < membersA.length; i++) {
+      for (let j = 0; j < membersB.length; j++) {
+        const mA = membersA[i];
+        const mB = membersB[j];
+        if ('isBot' in mA && mA.isBot) continue;
+        if ('isBot' in mB && mB.isBot) continue;
+
+        if (!isValidSwap(membersA, mB, mA)) continue;
+        if (!isValidSwap(membersB, mA, mB)) continue;
+        if (hasOwnerConflict(rA, mB, mA)) continue;
+        if (hasOwnerConflict(rB, mA, mB)) continue;
+
+        // 시간대가 다른 공격대 간 스왑 시, 상대 시간대 참여 가능 여부 검증
+        if (differentSlot) {
+          if (!canParticipateInSlot(mA, rB.timeSlot)) continue;
+          if (!canParticipateInSlot(mB, rA.timeSlot)) continue;
+        }
+
+        membersA[i] = mB;
+        membersB[j] = mA;
+        recalc(rA);
+        recalc(rB);
+
+        // 스펙미달+봇 공존 위반 체크
+        if (wouldViolateUnderpoweredBot(rA) || wouldViolateUnderpoweredBot(rB)) {
+          membersA[i] = mA;
+          membersB[j] = mB;
+          recalc(rA);
+          recalc(rB);
+          continue;
+        }
+
+        const newObj = calcObjective();
+        if (newObj < bestObj - 0.01) {
+          bestObj = newObj;
+          swapped = true;
+        } else {
+          membersA[i] = mA;
+          membersB[j] = mB;
+          recalc(rA);
+          recalc(rB);
+        }
+      }
+    }
+    return swapped;
+  };
+
+  const getTeamPairs = (rA: RaidGroup, rB: RaidGroup): [RaidMember[], RaidMember[], RaidGroup, RaidGroup][] => {
+    const pairs: [RaidMember[], RaidMember[], RaidGroup, RaidGroup][] = [
+      [rA.team1.members, rB.team1.members, rA, rB],
+    ];
+    if (rA.team2 && rB.team2) pairs.push([rA.team2.members, rB.team2.members, rA, rB]);
+    if (rB.team2) pairs.push([rA.team1.members, rB.team2.members, rA, rB]);
+    if (rA.team2) pairs.push([rA.team2.members, rB.team1.members, rA, rB]);
+    return pairs;
+  };
+
+  for (let iter = 0; iter < 500; iter++) {
     let improved = false;
 
-    // 1. 같은 공격대 내 팀 간 스왑 (team1 ↔ team2)
-    for (const raid of targetRaids) {
+    // 1. 봇 없는 공격대 내 팀 간 스왑
+    for (const raid of noBotRaids) {
       if (!raid.team2) continue;
-      for (let i = 0; i < raid.team1.members.length; i++) {
-        for (let j = 0; j < raid.team2.members.length; j++) {
-          const mA = raid.team1.members[i];
-          const mB = raid.team2.members[j];
-          if ('isBot' in mA && mA.isBot) continue;
-          if ('isBot' in mB && mB.isBot) continue;
+      if (trySwap(raid.team1.members, raid.team2.members, raid, raid)) improved = true;
+    }
 
-          if (!isValidSwap(raid.team1.members, mB, mA)) continue;
-          if (!isValidSwap(raid.team2.members, mA, mB)) continue;
-
-          // 스왑 실행
-          raid.team1.members[i] = mB;
-          raid.team2.members[j] = mA;
-          recalc(raid);
-
-          const newVar = calcVariance();
-          if (newVar < bestVariance - 0.01) {
-            bestVariance = newVar;
-            improved = true;
-          } else {
-            // 롤백
-            raid.team1.members[i] = mA;
-            raid.team2.members[j] = mB;
-            recalc(raid);
-          }
+    // 2. 봇 없는 공격대 간 크로스 스왑
+    for (let ri = 0; ri < noBotRaids.length; ri++) {
+      for (let rj = ri + 1; rj < noBotRaids.length; rj++) {
+        for (const [mA, mB, rA, rB] of getTeamPairs(noBotRaids[ri], noBotRaids[rj])) {
+          if (trySwap(mA, mB, rA, rB)) improved = true;
         }
       }
     }
 
-    // 2. 다른 공격대 간 같은 팀 위치 스왑
-    for (let ri = 0; ri < targetRaids.length; ri++) {
-      for (let rj = ri + 1; rj < targetRaids.length; rj++) {
-        const raidA = targetRaids[ri];
-        const raidB = targetRaids[rj];
-
-        // team1↔team1, team2↔team2, team1↔team2, team2↔team1
-        const pairs: [RaidMember[], RaidMember[], RaidGroup, RaidGroup][] = [
-          [raidA.team1.members, raidB.team1.members, raidA, raidB],
-          ...(raidA.team2 && raidB.team2 ? [[raidA.team2.members, raidB.team2.members, raidA, raidB] as [RaidMember[], RaidMember[], RaidGroup, RaidGroup]] : []),
-          ...(raidB.team2 ? [[raidA.team1.members, raidB.team2.members, raidA, raidB] as [RaidMember[], RaidMember[], RaidGroup, RaidGroup]] : []),
-          ...(raidA.team2 ? [[raidA.team2.members, raidB.team1.members, raidA, raidB] as [RaidMember[], RaidMember[], RaidGroup, RaidGroup]] : []),
-        ];
-
-        for (const [membersA, membersB, rA, rB] of pairs) {
-          for (let i = 0; i < membersA.length; i++) {
-            for (let j = 0; j < membersB.length; j++) {
-              const mA = membersA[i];
-              const mB = membersB[j];
-              if ('isBot' in mA && mA.isBot) continue;
-              if ('isBot' in mB && mB.isBot) continue;
-
-              if (!isValidSwap(membersA, mB, mA)) continue;
-              if (!isValidSwap(membersB, mA, mB)) continue;
-
-              // 소유주 중복 체크
-              if (hasOwnerConflict(rA, mB, mA)) continue;
-              if (hasOwnerConflict(rB, mA, mB)) continue;
-
-              // 스왑
-              membersA[i] = mB;
-              membersB[j] = mA;
-              recalc(rA);
-              recalc(rB);
-
-              const newVar = calcVariance();
-              if (newVar < bestVariance - 0.01) {
-                bestVariance = newVar;
-                improved = true;
-              } else {
-                membersA[i] = mA;
-                membersB[j] = mB;
-                recalc(rA);
-                recalc(rB);
-              }
-            }
-          }
+    // 3. 봇 공격대 ↔ 봇 없는 공격대 간 스왑 (강한 캐릭을 봇 없는 쪽으로)
+    for (const noBotRaid of noBotRaids) {
+      for (const botRaid of botRaids) {
+        for (const [mA, mB, rA, rB] of getTeamPairs(noBotRaid, botRaid)) {
+          if (trySwap(mA, mB, rA, rB)) improved = true;
         }
       }
     }
@@ -1742,8 +1894,11 @@ export function solveRaidComposition(registrations: DBRegistration[], raidType: 
   // 미참여 소유주 캐릭터를 기존 공격대에 스왑 삽입하는 후처리
   allResults = allResults.map(comp => tryIncludeExcludedOwners(comp, slotGroups, raidType));
 
-  // 전투력 균등화 후처리 (Hill Climbing)
-  allResults = allResults.map(comp => optimizeBalance(comp, raidType));
+  // 같은 시간대 내 공격대 간 전투력 균등화 (시간대 충돌 없음)
+  allResults = allResults.map(comp => balanceRaidsInSameSlot(comp, raidType));
+
+  // 전투력 균등화 후처리 - Hill Climbing (다른 시간대 간 스왑 포함, 시간대 검증 적용)
+  allResults = allResults.map(comp => optimizeBalance(comp, raidType, slotGroups));
 
   // 중복 제거
   const seen = new Set<string>();
