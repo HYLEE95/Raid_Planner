@@ -68,10 +68,30 @@ function buildSlotGroups(registrations: DBRegistration[], blockedOwnerSlots?: Bl
   const result: SlotGroup[] = [];
 
   for (const [, entries] of byDate) {
-    const uniqueSlots = new Map<string, TimeSlot>();
+    const rawSlots = new Map<string, TimeSlot>();
     for (const e of entries) {
       const key = `${e.slot.start_time}_${e.slot.end_time}`;
-      uniqueSlots.set(key, e.slot);
+      rawSlots.set(key, e.slot);
+    }
+
+    // 1시간 초과 슬롯을 1시간 단위로 분할 (레이드 소요시간 = 1시간)
+    const uniqueSlots = new Map<string, TimeSlot>();
+    for (const [, slot] of rawSlots) {
+      const startMin = timeToMinutes(slot.start_time);
+      const endMin = timeToMinutes(slot.end_time);
+      if (endMin - startMin > 60) {
+        for (let t = startMin; t + 60 <= endMin; t += 60) {
+          const subStart = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+          const subEnd = `${String(Math.floor((t + 60) / 60)).padStart(2, '0')}:${String((t + 60) % 60).padStart(2, '0')}`;
+          const key = `${subStart}_${subEnd}`;
+          if (!uniqueSlots.has(key)) {
+            uniqueSlots.set(key, { date: slot.date, start_time: subStart, end_time: subEnd });
+          }
+        }
+      } else {
+        const key = `${slot.start_time}_${slot.end_time}`;
+        uniqueSlots.set(key, slot);
+      }
     }
 
     for (const [, slot] of uniqueSlots) {
@@ -1998,10 +2018,30 @@ function buildBriSlotGroups(registrations: DBRegistration[], blockedOwnerSlots?:
   const result: BriSlotGroup[] = [];
 
   for (const [, entries] of byDate) {
-    const uniqueSlots = new Map<string, TimeSlot>();
+    const rawSlots = new Map<string, TimeSlot>();
     for (const e of entries) {
       const key = `${e.slot.start_time}_${e.slot.end_time}`;
-      uniqueSlots.set(key, e.slot);
+      rawSlots.set(key, e.slot);
+    }
+
+    // 1시간 초과 슬롯을 1시간 단위로 분할 (레이드 소요시간 = 1시간)
+    const uniqueSlots = new Map<string, TimeSlot>();
+    for (const [, slot] of rawSlots) {
+      const startMin = timeToMinutes(slot.start_time);
+      const endMin = timeToMinutes(slot.end_time);
+      if (endMin - startMin > 60) {
+        for (let t = startMin; t + 60 <= endMin; t += 60) {
+          const subStart = `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+          const subEnd = `${String(Math.floor((t + 60) / 60)).padStart(2, '0')}:${String((t + 60) % 60).padStart(2, '0')}`;
+          const key = `${subStart}_${subEnd}`;
+          if (!uniqueSlots.has(key)) {
+            uniqueSlots.set(key, { date: slot.date, start_time: subStart, end_time: subEnd });
+          }
+        }
+      } else {
+        const key = `${slot.start_time}_${slot.end_time}`;
+        uniqueSlots.set(key, slot);
+      }
     }
 
     for (const [, slot] of uniqueSlots) {
