@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>공격대 배치 프로그램 사용 설명서</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #F0F2F5;
+  color: #2C3E50;
+  line-height: 1.6;
+  padding: 20px;
+}
+.container {
+  max-width: 520px;
+  margin: 0 auto;
+}
+.header {
+  text-align: center;
+  padding: 30px 20px;
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  color: #fff;
+  border-radius: 20px;
+  margin-bottom: 20px;
+}
+.header h1 { font-size: 22px; margin-bottom: 6px; }
+.header p { font-size: 13px; color: #94a3b8; }
+.header .badge {
+  display: inline-block;
+  background: #3b82f6;
+  color: #fff;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.section {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.section-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #1e40af;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #dbeafe;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title .icon { font-size: 20px; }
+
+.step {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  align-items: flex-start;
+}
+.step:last-child { margin-bottom: 0; }
+.step-num {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  background: #3b82f6;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.step-content { flex: 1; }
+.step-content h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.step-content p { font-size: 13px; color: #64748b; }
+
+.highlight {
+  background: #FFF7ED;
+  border: 1px solid #FDBA74;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 10px 0;
+  font-size: 13px;
+}
+.highlight.blue {
+  background: #EFF6FF;
+  border-color: #93C5FD;
+}
+.highlight.green {
+  background: #F0FDF4;
+  border-color: #86EFAC;
+}
+.highlight.red {
+  background: #FEF2F2;
+  border-color: #FCA5A5;
+}
+
+.rule-list {
+  list-style: none;
+  padding: 0;
+}
+.rule-list li {
+  padding: 8px 0;
+  border-bottom: 1px dashed #e2e8f0;
+  font-size: 13px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.rule-list li:last-child { border-bottom: none; }
+.rule-list .bullet {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: #3b82f6;
+  border-radius: 50%;
+  margin-top: 7px;
+}
+
+.nav-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0;
+}
+.nav-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 12px;
+  text-align: center;
+}
+.nav-item .nav-icon { font-size: 24px; margin-bottom: 6px; }
+.nav-item .nav-name { font-size: 13px; font-weight: 600; color: #334155; }
+.nav-item .nav-desc { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+
+.class-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.class-badge {
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+.class-badge.melee { background: #ef4444; }
+.class-badge.ranged { background: #3b82f6; }
+.class-badge.tank { background: #eab308; color: #422006; }
+.class-badge.healer { background: #22c55e; }
+
+.link-box {
+  background: #f8fafc;
+  border: 1px solid #93C5FD;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 10px 0;
+}
+.link-box a {
+  color: #2563eb;
+  font-size: 12px;
+  word-break: break-all;
+  text-decoration: none;
+}
+.link-box button {
+  flex-shrink: 0;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 8px;
+}
+.link-box button:active { background: #2563eb; }
+
+.footer {
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.divider {
+  border: none;
+  border-top: 1px dashed #e2e8f0;
+  margin: 14px 0;
+}
+
+.sub-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  margin: 12px 0 8px;
+}
+
+.tag {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.tag.red { background: #fee2e2; color: #b91c1c; }
+.tag.green { background: #dcfce7; color: #166534; }
+.tag.yellow { background: #fef9c3; color: #854d0e; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <h1>공격대 배치 프로그램</h1>
+  <p>같이살자 길드 레이드 파티 자동 구성</p>
+  <span class="badge">사용 설명서 v1.0</span>
+</div>
+
+<!-- 접속 링크 -->
+<div class="section">
+  <div class="section-title"><span class="icon">🔗</span> 프로그램 접속</div>
+  <p style="font-size:13px; margin-bottom:10px;">아래 링크를 통해 웹 브라우저에서 바로 사용할 수 있습니다.</p>
+  <div class="link-box">
+    <a href="https://hylee95.github.io/Raid_Planner/" target="_blank">https://hylee95.github.io/Raid_Planner/</a>
+    <button onclick="navigator.clipboard.writeText('https://hylee95.github.io/Raid_Planner/');this.textContent='복사됨!';setTimeout(()=>this.textContent='복사',1500)">복사</button>
+  </div>
+  <div class="highlight blue">
+    💡 PC, 모바일 모두 사용 가능합니다. 별도 설치 없이 브라우저에서 바로 이용하세요.
+  </div>
+</div>
+
+<!-- 메뉴 구성 -->
+<div class="section">
+  <div class="section-title"><span class="icon">📱</span> 메뉴 구성</div>
+  <p style="font-size:13px; margin-bottom:12px;">하단 네비게이션 바에서 4개 메뉴를 이용할 수 있습니다.</p>
+  <div class="nav-grid">
+    <div class="nav-item">
+      <div class="nav-icon">🏠</div>
+      <div class="nav-name">홈</div>
+      <div class="nav-desc">확정된 공격대 확인/편집</div>
+    </div>
+    <div class="nav-item">
+      <div class="nav-icon">📝</div>
+      <div class="nav-name">파티 참여 신청</div>
+      <div class="nav-desc">레이드 참여 등록</div>
+    </div>
+    <div class="nav-item">
+      <div class="nav-icon">⚔️</div>
+      <div class="nav-name">공격대 배치</div>
+      <div class="nav-desc">자동 조합 생성/확정</div>
+    </div>
+    <div class="nav-item">
+      <div class="nav-icon">👤</div>
+      <div class="nav-name">캐릭터 정보</div>
+      <div class="nav-desc">캐릭터 프로필 관리</div>
+    </div>
+  </div>
+</div>
+
+<!-- 1단계: 캐릭터 등록 -->
+<div class="section">
+  <div class="section-title"><span class="icon">👤</span> 1단계: 캐릭터 정보 등록</div>
+  <p style="font-size:13px; margin-bottom:12px;"><span class="tag">캐릭터 정보</span> 메뉴에서 본인의 캐릭터를 미리 등록합니다.</p>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <h4>소유주 이름 입력</h4>
+      <p>본인을 식별할 수 있는 이름을 입력합니다. (예: 닉네임, 디스코드명)</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <h4>캐릭터 추가</h4>
+      <p>레이드에 참여할 캐릭터의 닉네임, 직군, 전투력을 입력합니다.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <h4>직군 선택</h4>
+      <p>캐릭터의 역할을 선택합니다.</p>
+      <div class="class-badges">
+        <span class="class-badge melee">근딜</span>
+        <span class="class-badge ranged">원딜</span>
+        <span class="class-badge tank">호법성</span>
+        <span class="class-badge healer">치유성</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="highlight">
+    ⚠️ <b>전투력</b>은 K 단위로 입력합니다. (예: 365K → 365)<br>
+    ⚠️ <b>저스펙 체크</b>: 기준 전투력(160K) 미달 시 체크하면 봇과 같은 공격대에 배치되지 않습니다.
+  </div>
+</div>
+
+<!-- 2단계: 파티 참여 신청 -->
+<div class="section">
+  <div class="section-title"><span class="icon">📝</span> 2단계: 파티 참여 신청</div>
+  <p style="font-size:13px; margin-bottom:12px;"><span class="tag">파티 참여 신청</span> 메뉴에서 레이드에 참여를 등록합니다.</p>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <h4>레이드 선택</h4>
+      <p><span class="tag">루드라</span> 또는 <span class="tag green">브리레흐 1-3관문</span> 중 선택합니다.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <h4>주차 선택</h4>
+      <p>참여할 리셋 주차를 선택합니다. (매주 수요일 기준)</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <h4>소유주 선택</h4>
+      <p>캐릭터 정보에서 등록한 소유주를 선택하면 캐릭터가 자동으로 불러와집니다.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <h4>가용 시간대 선택</h4>
+      <p>시간표에서 참여 가능한 날짜와 시간을 터치/클릭하여 선택합니다.</p>
+    </div>
+  </div>
+
+  <div class="highlight green">
+    💡 가용 시간대가 넓을수록 다양한 공격대에 배치될 확률이 높아집니다!
+  </div>
+</div>
+
+<!-- 3단계: 공격대 배치 -->
+<div class="section">
+  <div class="section-title"><span class="icon">⚔️</span> 3단계: 공격대 배치</div>
+  <p style="font-size:13px; margin-bottom:12px;"><span class="tag">공격대 배치</span> 메뉴에서 자동 조합을 생성합니다.</p>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <h4>레이드 & 주차 선택</h4>
+      <p>배치할 레이드와 주차를 선택합니다.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <h4>공격대 배치 버튼 클릭</h4>
+      <p>프로그램이 수천 가지 조합을 계산하여 최적의 배치안을 제시합니다.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <h4>조합 확인 및 선택</h4>
+      <p>여러 조합 중 원하는 것을 선택하고 <b>"더보기"</b>를 눌러 상세 내용을 확인합니다.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <h4>파티원 수동 편집 (선택)</h4>
+      <p><b>"변경"</b> 버튼으로 멤버를 교체하거나 다른 공격대 멤버와 스왑할 수 있습니다.</p>
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-content">
+      <h4>공대 확정</h4>
+      <p><b>"공대 확정"</b> 버튼으로 최종 배치를 저장합니다.</p>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="sub-title">조합 정보 읽기</div>
+  <ul class="rule-list">
+    <li><span class="bullet"></span> <b>공격대 수</b>: 편성된 총 공격대 개수</li>
+    <li><span class="bullet"></span> <b>평균(딜러)</b>: 봇 제외 전체 팀 딜러 평균 전투력</li>
+    <li><span class="bullet"></span> <b>공방인원</b>: 봇(자동 채워진 빈자리) 수</li>
+    <li><span class="bullet"></span> <b>제외</b>: 이번 조합에서 배치되지 못한 인원 수</li>
+  </ul>
+</div>
+
+<!-- 홈 (확정 공격대) -->
+<div class="section">
+  <div class="section-title"><span class="icon">🏠</span> 홈: 확정 공격대 관리</div>
+  <p style="font-size:13px; margin-bottom:12px;"><span class="tag">홈</span> 메뉴에서 확정된 공격대를 확인하고 편집합니다.</p>
+
+  <ul class="rule-list">
+    <li><span class="bullet"></span> 확정된 공격대의 멤버를 변경/스왑 가능</li>
+    <li><span class="bullet"></span> 변경 후 <b>"변경 저장"</b> 버튼으로 저장</li>
+    <li><span class="bullet"></span> 같은 레이드+주차에 재확정 시 기존 조합을 덮어씁니다</li>
+  </ul>
+</div>
+
+<!-- 배치 규칙 -->
+<div class="section">
+  <div class="section-title"><span class="icon">📋</span> 배치 규칙</div>
+
+  <div class="sub-title">루드라 기본 규칙</div>
+  <ul class="rule-list">
+    <li><span class="bullet"></span> 공격대당 <b>2팀 × 4명</b> = 8명 구성</li>
+    <li><span class="bullet"></span> 각 팀에 <b>서포터(호법/치유) 최소 1명</b> 필수</li>
+    <li><span class="bullet"></span> 각 팀에 <b>근딜, 원딜 최소 1명</b>씩 보장</li>
+    <li><span class="bullet"></span> 같은 팀에 <b>호법+호법</b> 또는 <b>치유+치유</b> 불가</li>
+    <li><span class="bullet"></span> 같은 공격대에 <b>동일 소유주 캐릭터 중복 불가</b></li>
+  </ul>
+
+  <hr class="divider">
+
+  <div class="sub-title">봇(공방인원) 규칙</div>
+  <ul class="rule-list">
+    <li><span class="bullet"></span> 봇은 <b>마지막 공격대에만</b> 배치 가능</li>
+    <li><span class="bullet"></span> 봇 공격대에 <b>저스펙 인원 배치 불가</b></li>
+    <li><span class="bullet"></span> 봇 공격대 팀 평균 전투력 <b>160K 이상</b> 필수</li>
+  </ul>
+
+  <hr class="divider">
+
+  <div class="sub-title">서포터 전투력 계산</div>
+  <ul class="rule-list">
+    <li><span class="bullet"></span> 서포터 1명: 평균 계산에서 <b>제외</b> (딜러만 계산)</li>
+    <li><span class="bullet"></span> 서포터 2명+: 전투력 <b>가장 낮은 서포터 1명만 제외</b>, 나머지는 딜러로 간주</li>
+    <li><span class="bullet"></span> 강한 서포터는 DPS 슬롯에도 배치되어 평균 전투력 상승에 기여</li>
+  </ul>
+
+  <hr class="divider">
+
+  <div class="sub-title">전투력 균등화</div>
+  <ul class="rule-list">
+    <li><span class="bullet"></span> 강한 캐릭터가 포함된 시간대를 <b>우선 처리</b>하여 봇 없는 공격대에 배치</li>
+    <li><span class="bullet"></span> Hill Climbing 알고리즘으로 팀 간 <b>전투력 분산 최소화</b></li>
+    <li><span class="bullet"></span> 시간대가 다른 공격대 간 스왑 시 <b>시간대 참여 가능 여부 검증</b></li>
+  </ul>
+</div>
+
+<!-- 멤버 편집 -->
+<div class="section">
+  <div class="section-title"><span class="icon">✏️</span> 멤버 편집 시 주의사항</div>
+
+  <ul class="rule-list">
+    <li><span class="bullet"></span> 교체 대상이 해당 공격대 <b>시간대에 참여 불가능</b>하면 선택지에 나타나지 않습니다</li>
+    <li><span class="bullet"></span> 같은 공격대 내 <b>소유주 중복</b>이 발생하는 교체는 불가합니다</li>
+    <li><span class="bullet"></span> 같은 파티 소속 인원은 교체 선택지에서 <b>자동 제외</b>됩니다</li>
+    <li><span class="bullet"></span> <b>"공방인원(봇)"</b>으로 교체하면 해당 멤버는 빠지는 인원으로 이동합니다</li>
+  </ul>
+
+  <div class="highlight red">
+    ⚠️ 수동 편집 후에는 반드시 <b>"공대 확정"</b> 또는 <b>"변경 저장"</b>을 눌러 저장하세요!
+  </div>
+</div>
+
+<!-- FAQ -->
+<div class="section">
+  <div class="section-title"><span class="icon">❓</span> 자주 묻는 질문</div>
+
+  <div class="sub-title">Q. 강한 캐릭이 봇 공격대에 배치돼요</div>
+  <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
+    해당 캐릭터가 가용한 시간대에 비봇 공격대를 구성할 만큼 충분한 인원이 없기 때문입니다. 가용 시간대를 넓히면 개선됩니다.
+  </p>
+
+  <hr class="divider">
+
+  <div class="sub-title">Q. 제외 인원이 많아요</div>
+  <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
+    시간대가 겹치는 인원이 적거나 서포터 부족 등으로 파티 구성이 어려운 경우 발생합니다. 더 많은 시간대에 참여 가능하도록 등록하면 개선됩니다.
+  </p>
+
+  <hr class="divider">
+
+  <div class="sub-title">Q. 브리레흐는 어떻게 달라요?</div>
+  <p style="font-size:13px; color:#64748b;">
+    브리레흐는 1팀(최대 8명) 구성이며, 직군 제한 없이 자유롭게 배치됩니다. 전투력 대신 참여 인원 최대화에 초점을 맞춥니다.
+  </p>
+</div>
+
+<div class="footer">
+  같이살자 길드 공격대 배치 프로그램<br>
+  문의: 길드 디스코드
+</div>
+
+</div>
+</body>
+</html>
