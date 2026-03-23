@@ -334,8 +334,14 @@ function tryFormRaid(
       } else if (canP1) addToTeam(team1Members, char);
       else addToTeam(team2Members, char);
     } else {
+      // DPS: 근딜/원딜 혼합 선호 + 전투력 균등
       if (can1 && can2) {
-        if (teamDpsSum(team2Members) <= teamDpsSum(team1Members)) addToTeam(team2Members, char);
+        const t1HasType = team1Members.some(m => m.class_type === char.class_type);
+        const t2HasType = team2Members.some(m => m.class_type === char.class_type);
+        // 같은 타입이 없는 팀 우선 (근딜/원딜 혼합)
+        if (!t1HasType && t2HasType) addToTeam(team1Members, char);
+        else if (!t2HasType && t1HasType) addToTeam(team2Members, char);
+        else if (teamDpsSum(team2Members) <= teamDpsSum(team1Members)) addToTeam(team2Members, char);
         else addToTeam(team1Members, char);
       } else if (can1) addToTeam(team1Members, char);
       else if (can2) addToTeam(team2Members, char);
@@ -491,6 +497,16 @@ function scoreComposition(comp: RaidComposition): number {
     }
   }
 
+  // 근딜/원딜 혼합 선호 (한 종류만 있으면 패널티)
+  for (const raid of comp.raids) {
+    for (const team of [raid.team1, raid.team2].filter(Boolean) as Team[]) {
+      const realMembers = team.members.filter(m => !('isBot' in m && m.isBot));
+      const hasMelee = realMembers.some(m => m.class_type === '근딜');
+      const hasRanged = realMembers.some(m => m.class_type === '원딜');
+      if (realMembers.length >= 3 && (!hasMelee || !hasRanged)) score += 5000;
+    }
+  }
+
   // 스펙미달+봇 같은 공격대 패널티
   for (const raid of comp.raids) {
     if (raid.botCount === 0) continue;
@@ -567,8 +583,23 @@ function greedySchedule(
     }
   }
 
-  // 2단계: 마지막 공격대 (DPS 봇 허용)
-  for (const sg of orderedSlots) {
+  // 2단계: 제외 인원이 있는 시간대에서 봇 포함 공대 추가 편성
+  // 아직 참여하지 못한 소유주가 가용한 슬롯을 우선 시도
+  const participatingOwners = new Set<string>();
+  for (const raid of raids) {
+    for (const m of [...raid.team1.members, ...(raid.team2?.members || [])]) {
+      if (!('isBot' in m && m.isBot) && 'owner_id' in m) participatingOwners.add((m as any).owner_id);
+    }
+  }
+
+  // 미참여 소유주가 있는 슬롯 우선 정렬
+  const slotsForRescue = [...slotGroups].sort((a, b) => {
+    const aUnincluded = a.characters.filter(c => !usedCharIds.has(c.id) && !participatingOwners.has(c.owner_id)).length;
+    const bUnincluded = b.characters.filter(c => !usedCharIds.has(c.id) && !participatingOwners.has(c.owner_id)).length;
+    return bUnincluded - aUnincluded; // 미참여 소유주 많은 슬롯 우선
+  });
+
+  for (const sg of slotsForRescue) {
     const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
     const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
     if (slotAvail.length < 2) continue;
@@ -577,7 +608,7 @@ function greedySchedule(
     raids.push(result.raid);
     for (const c of result.usedChars) usedCharIds.add(c.id);
     raidId++;
-    break;
+    break; // 봇 공대 1개만
   }
 
   if (raids.length === 0) return null;
