@@ -10,14 +10,14 @@ import {
 import type { ClassType, DBCharacterProfile, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
 
-const RUDRA_CLASS_TYPES: ClassType[] = ['근딜', '원딜', '호법성', '치유성'];
+const RUDRA_CLASS_TYPES: ClassType[] = ['근딜', '원딜', '호법', '치유'];
 const BRI_CLASS_TYPES: ClassType[] = ['세가', '세바', '딜러'];
 
 const CLASS_COLORS: Record<string, string> = {
   '근딜': 'bg-red-100 text-red-800 border-red-300',
   '원딜': 'bg-blue-100 text-blue-800 border-blue-300',
-  '호법성': 'bg-yellow-100 text-yellow-800 border-yellow-300',
-  '치유성': 'bg-green-100 text-green-800 border-green-300',
+  '호법': 'bg-yellow-100 text-yellow-800 border-yellow-300',
+  '치유': 'bg-green-100 text-green-800 border-green-300',
   '세가': 'bg-purple-100 text-purple-800 border-purple-300',
   '세바': 'bg-teal-100 text-teal-800 border-teal-300',
   '딜러': 'bg-rose-100 text-rose-800 border-rose-300',
@@ -91,7 +91,7 @@ export default function CharacterInput() {
     if (!isBri) {
       if (field === 'can_clear_raid' && value === true) updated[idx].is_underpowered = false;
       if (field === 'is_underpowered' && value === true) updated[idx].can_clear_raid = false;
-      if (field === 'class_type' && (value === '치유성' || value === '호법성')) {
+      if (field === 'class_type' && (value === '치유' || value === '호법')) {
         updated[idx].can_clear_raid = false;
         updated[idx].is_underpowered = false;
       }
@@ -420,7 +420,7 @@ export default function CharacterInput() {
                               </div>
                               <div className="flex flex-col gap-2 justify-end">
                                 {(() => {
-                                  const isSupport = char.class_type === '치유성' || char.class_type === '호법성';
+                                  const isSupport = char.class_type === '치유' || char.class_type === '호법';
                                   return (
                                     <>
                                       <label className={`flex items-center gap-2 ${isSupport || char.is_underpowered ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>

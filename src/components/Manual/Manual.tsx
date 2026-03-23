@@ -29,11 +29,11 @@ export default function Manual() {
             <span className="w-6 h-6 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">c</span>
             <div>
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">캐릭터 정보 등록</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">각 캐릭터의 닉네임, 직업군(근딜/원딜/호법성/치유성), 전투력(K)을 입력합니다.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">각 캐릭터의 닉네임, 직업군(근딜/원딜/호법/치유), 전투력(K)을 입력합니다.</p>
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 space-y-1">
                 <p><span className="font-semibold text-red-500">근딜</span> / <span className="font-semibold text-blue-500">원딜</span> : 딜러 직군</p>
-                <p><span className="font-semibold text-yellow-600">호법성</span> : 탱커 (서포트 직군, 2팀에 배치 불가)</p>
-                <p><span className="font-semibold text-green-600">치유성</span> : 힐러 (서포트 직군)</p>
+                <p><span className="font-semibold text-yellow-600">호법</span> : 탱커 (서포트 직군, 2팀에 배치 불가)</p>
+                <p><span className="font-semibold text-green-600">치유</span> : 힐러 (서포트 직군)</p>
                 <p className="mt-1">공팟 가도 상관 없음 : 공방 인원과 함께 배치 가능</p>
                 <p>공팟 스펙 미달(저스펙) : 공방 인원과 같은 공격대에 배치되지 않음</p>
               </div>
@@ -124,8 +124,8 @@ export default function Manual() {
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">각 조합을 펼쳐서 공격대 구성을 확인하고, 원하는 조합의 "공대 확정" 버튼을 눌러 확정합니다.</p>
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 space-y-1">
                 <p>각 공격대는 1팀(4명) + 2팀(4명)으로 구성</p>
-                <p>1팀: 서포트(호법성/치유성) 최소 1명 필수</p>
-                <p>2팀: 치유성 최소 1명 필수, 호법성 배치 불가</p>
+                <p>1팀: 서포트(호법/치유) 최소 1명 필수</p>
+                <p>2팀: 치유 최소 1명 필수, 호법 배치 불가</p>
                 <p>공방인원: 인원 부족 시 자동으로 채워지는 빈 슬롯</p>
               </div>
             </div>

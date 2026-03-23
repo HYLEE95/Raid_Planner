@@ -5,8 +5,8 @@ import { calcTeamAvg } from '../../lib/raidSolver';
 const CLASS_BADGE: Record<string, string> = {
   '근딜': 'bg-red-500 text-white',
   '원딜': 'bg-blue-500 text-white',
-  '호법성': 'bg-yellow-500 text-white',
-  '치유성': 'bg-green-500 text-white',
+  '호법': 'bg-yellow-500 text-white',
+  '치유': 'bg-green-500 text-white',
   '세가': 'bg-purple-500 text-white',
   '세바': 'bg-teal-500 text-white',
   '딜러': 'bg-rose-500 text-white',
@@ -863,13 +863,13 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
       };
     } else {
       const team1Bots: RaidMember[] = [
-        { isBot: true, nickname: `공방인원1`, class_type: '호법성', combat_power: 0 },
+        { isBot: true, nickname: `공방인원1`, class_type: '호법', combat_power: 0 },
         { isBot: true, nickname: `공방인원2`, class_type: '근딜', combat_power: 0 },
         { isBot: true, nickname: `공방인원3`, class_type: '원딜', combat_power: 0 },
         { isBot: true, nickname: `공방인원4`, class_type: '원딜', combat_power: 0 },
       ];
       const team2Bots: RaidMember[] = [
-        { isBot: true, nickname: `공방인원5`, class_type: '치유성', combat_power: 0 },
+        { isBot: true, nickname: `공방인원5`, class_type: '치유', combat_power: 0 },
         { isBot: true, nickname: `공방인원6`, class_type: '근딜', combat_power: 0 },
         { isBot: true, nickname: `공방인원7`, class_type: '원딜', combat_power: 0 },
         { isBot: true, nickname: `공방인원8`, class_type: '원딜', combat_power: 0 },
@@ -1058,7 +1058,7 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
                           className="px-2 py-1 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-sm rounded border border-orange-300"
                         >
                           {char.nickname}
-                          <span className="text-xs ml-1">({char.ownerName})</span>
+                          <span className="text-xs ml-1">({char.class_type}/{char.ownerName})</span>
                         </span>
                       ))}
                     </div>

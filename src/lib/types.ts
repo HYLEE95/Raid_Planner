@@ -1,4 +1,4 @@
-export type ClassType = '근딜' | '원딜' | '호법성' | '치유성' | '세가' | '세바' | '딜러';
+export type ClassType = '근딜' | '원딜' | '호법' | '치유' | '세가' | '세바' | '딜러';
 
 // 레이드 타입
 export type RaidType = '루드라' | '브리레흐';
@@ -15,8 +15,8 @@ export interface RaidConfig {
   maxBots: number;            // 최대 봇 수
   // 팀별 서포트 규칙 (루드라용)
   teamRules?: {
-    team1: { supportType: ('치유성' | '호법성')[]; exactCount: number };
-    team2: { supportType: ('치유성')[]; exactCount: number };
+    team1: { supportType: ('치유' | '호법')[]; exactCount: number };
+    team2: { supportType: ('치유')[]; exactCount: number };
   };
 }
 
@@ -30,8 +30,8 @@ export const RAID_CONFIGS: Record<RaidType, RaidConfig> = {
     durationHours: 1,
     maxBots: 4,
     teamRules: {
-      team1: { supportType: ['치유성', '호법성'], exactCount: 1 },
-      team2: { supportType: ['치유성'], exactCount: 1 },
+      team1: { supportType: ['치유', '호법'], exactCount: 1 },
+      team2: { supportType: ['치유'], exactCount: 1 },
     },
   },
   '브리레흐': {
