@@ -253,8 +253,7 @@ function tryFormRaid(
   timeSlot: TimeSlot,
   raidId: number,
   maxBotsPerRaid: number,
-  usedOwnersInTimeSlot: Set<string>,
-  supportPriority?: string[], // P0: 서포터 배치 우선순위 (캐릭터 ID 목록)
+  usedOwnersInTimeSlot: Set<string>
 ): { raid: RaidGroup; usedChars: CharacterWithOwner[] } | null {
   const eligible = available.filter(
     c => !usedCharIds.has(c.id) && !usedOwnersInTimeSlot.has(c.owner_id)
@@ -271,19 +270,10 @@ function tryFormRaid(
     if (c.class_type === '근딜' || c.class_type === '원딜') ownerHasDpsSet.add(c.owner_id);
   }
 
-  const supportSort = (a: CharacterWithOwner, b: CharacterWithOwner) => {
-    // P0: supportPriority가 있으면 우선순위 리스트 순서로 정렬
-    if (supportPriority) {
-      const aIdx = supportPriority.indexOf(a.id);
-      const bIdx = supportPriority.indexOf(b.id);
-      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-      if (aIdx !== -1) return -1;
-      if (bIdx !== -1) return 1;
-    }
-    return (ownerHasDpsSet.has(a.owner_id) ? 1 : 0) - (ownerHasDpsSet.has(b.owner_id) ? 1 : 0);
-  };
-  const healers = eligible.filter(c => c.class_type === '치유').sort(supportSort);
-  const tanks = eligible.filter(c => c.class_type === '호법').sort(supportSort);
+  const healers = eligible.filter(c => c.class_type === '치유')
+    .sort((a, b) => (ownerHasDpsSet.has(a.owner_id) ? 1 : 0) - (ownerHasDpsSet.has(b.owner_id) ? 1 : 0));
+  const tanks = eligible.filter(c => c.class_type === '호법')
+    .sort((a, b) => (ownerHasDpsSet.has(a.owner_id) ? 1 : 0) - (ownerHasDpsSet.has(b.owner_id) ? 1 : 0));
 
   const team1Members: RaidMember[] = [];
   const team2Members: RaidMember[] = [];
@@ -308,17 +298,7 @@ function tryFormRaid(
   // 1팀: 서포터(치유/호법) 1명 필수 (봇 사용 안 함)
   const remainSupports = [...tanks, ...healers.filter(c => !usedCharIdSet.has(c.id))]
     .filter(c => !isOwnerInRaid(c.owner_id))
-    .sort((a, b) => {
-      // P0: supportPriority가 있으면 우선순위 순서 적용
-      if (supportPriority) {
-        const aIdx = supportPriority.indexOf(a.id);
-        const bIdx = supportPriority.indexOf(b.id);
-        if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
-        if (aIdx !== -1) return -1;
-        if (bIdx !== -1) return 1;
-      }
-      return b.combat_power - a.combat_power;
-    });
+    .sort((a, b) => b.combat_power - a.combat_power);
   if (remainSupports.length === 0) return null;
   addToTeam(team1Members, remainSupports[0]);
 
@@ -563,46 +543,6 @@ function sortSlotsByTopDps(slots: SlotGroup[], usedCharIds: Set<string>): SlotGr
   });
 }
 
-// P1: 서포터 부족 슬롯 우선 (제약 강한 슬롯 먼저 처리)
-function sortSlotsBySupportScarcity(slots: SlotGroup[]): SlotGroup[] {
-  return [...slots].sort((a, b) => {
-    const aSupports = a.characters.filter(c => c.class_type === '치유' || c.class_type === '호법').length;
-    const bSupports = b.characters.filter(c => c.class_type === '치유' || c.class_type === '호법').length;
-    if (aSupports !== bSupports) return aSupports - bSupports;
-    return b.characters.length - a.characters.length;
-  });
-}
-
-// P1: 시간 제약 많은 소유주가 있는 슬롯 우선
-function sortSlotsByOwnerConstraint(slots: SlotGroup[], allSlots: SlotGroup[]): SlotGroup[] {
-  const charSlotCount = new Map<string, number>();
-  for (const sg of allSlots) {
-    for (const c of sg.characters) {
-      charSlotCount.set(c.id, (charSlotCount.get(c.id) ?? 0) + 1);
-    }
-  }
-  return [...slots].sort((a, b) => {
-    const avgFlex = (sg: SlotGroup) => {
-      if (sg.characters.length === 0) return Infinity;
-      return sg.characters.reduce((s, c) => s + (charSlotCount.get(c.id) ?? 0), 0) / sg.characters.length;
-    };
-    return avgFlex(a) - avgFlex(b);
-  });
-}
-
-// P0: 배열 순열 생성 (소규모 전용)
-function permute<T>(arr: T[]): T[][] {
-  if (arr.length <= 1) return [arr.slice()];
-  const result: T[][] = [];
-  for (let i = 0; i < arr.length; i++) {
-    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
-    for (const p of permute(rest)) {
-      result.push([arr[i], ...p]);
-    }
-  }
-  return result;
-}
-
 function compositionKey(comp: RaidComposition): string {
   const raidKeys = comp.raids.map(r => {
     const t1 = r.team1.members.map(m => m.nickname).sort().join(',');
@@ -621,7 +561,6 @@ function compositionKey(comp: RaidComposition): string {
 function greedySchedule(
   orderedSlots: SlotGroup[],
   slotGroups: SlotGroup[],
-  supportPriority?: string[], // P0: 서포터 배치 우선순위
 ): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
   if (allChars.length === 0) return null;
@@ -636,7 +575,7 @@ function greedySchedule(
       const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
       const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
       if (slotAvail.length < 2) break;
-      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, 0, usedOwnersInSlot, supportPriority);
+      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, 0, usedOwnersInSlot);
       if (!result) break;
       raids.push(result.raid);
       for (const c of result.usedChars) usedCharIds.add(c.id);
@@ -664,7 +603,7 @@ function greedySchedule(
     const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
     const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
     if (slotAvail.length < 2) continue;
-    const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, MAX_BOTS_LAST, usedOwnersInSlot, supportPriority);
+    const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, MAX_BOTS_LAST, usedOwnersInSlot);
     if (!result) continue;
     raids.push(result.raid);
     for (const c of result.usedChars) usedCharIds.add(c.id);
@@ -705,44 +644,11 @@ function generateCompositions(slotGroups: SlotGroup[]): RaidComposition[] {
   const allResults: RaidComposition[] = [];
   const emptyUsed = new Set<string>();
 
-  // ==========================================
-  // P0: 서포터 배치 백트래킹 — 서포터 순열 × 슬롯 전략 전수 탐색
-  // ==========================================
-  const allCharsForBT = getAllUniqueChars(slotGroups);
-  const healerIds = [...new Set(allCharsForBT.filter(c => c.class_type === '치유').map(c => c.id))];
-  const tankIds = [...new Set(allCharsForBT.filter(c => c.class_type === '호법').map(c => c.id))];
-  const healerPerms = permute(healerIds);
-  const tankPerms = permute(tankIds);
-
-  for (const hp of healerPerms) {
-    for (const tp of tankPerms) {
-      const priority = [...hp, ...tp];
-      // 각 서포터 순열에 대해 다양한 슬롯 정렬 전략 적용
-      const slotStrategies: SlotGroup[][] = [
-        sortSlotsByTopDps(slotGroups, emptyUsed),
-        sortSlotsBySupportScarcity(slotGroups),
-        sortSlotsByOwnerConstraint(slotGroups, slotGroups),
-        [...slotGroups].reverse(),
-        slotGroups,
-      ];
-      for (const ordered of slotStrategies) {
-        const comp = greedySchedule(ordered, slotGroups, priority);
-        if (comp) allResults.push(comp);
-      }
-    }
-  }
-
-  // 기본 전략: DPS 높은 슬롯 우선 (서포터 우선순위 없음)
+  // 기본 전략: DPS 높은 슬롯 우선
   const dpsOrdered = greedySchedule(sortSlotsByTopDps(slotGroups, emptyUsed), slotGroups);
   if (dpsOrdered) allResults.push(dpsOrdered);
 
-  // P1: 추가 전략들 (서포터 우선순위 없음)
-  const supportScarce = greedySchedule(sortSlotsBySupportScarcity(slotGroups), slotGroups);
-  if (supportScarce) allResults.push(supportScarce);
-  const ownerConstrained = greedySchedule(sortSlotsByOwnerConstraint(slotGroups, slotGroups), slotGroups);
-  if (ownerConstrained) allResults.push(ownerConstrained);
-
-  // 셔플 기반 (P0 백트래킹 보완, 횟수 유지)
+  // 셔플 기반 3000회
   for (let seed = 1; seed <= 3000; seed++) {
     const shuffledSlots: SlotGroup[] = slotGroups.map(sg => ({
       slot: sg.slot,
@@ -750,17 +656,13 @@ function generateCompositions(slotGroups: SlotGroup[]): RaidComposition[] {
     }));
 
     const emptyUsed2 = new Set<string>();
-    const orderedSlots = seed % 6 === 0
+    const orderedSlots = seed % 4 === 0
       ? [...shuffledSlots].reverse()
-      : seed % 6 === 1
+      : seed % 4 === 1
         ? shuffle(shuffledSlots, seed)
-        : seed % 6 === 2
+        : seed % 4 === 2
           ? sortSlotsByTopDps(shuffledSlots, emptyUsed2)
-          : seed % 6 === 3
-            ? sortSlotsBySupportScarcity(shuffledSlots)  // P1
-            : seed % 6 === 4
-              ? sortSlotsByOwnerConstraint(shuffledSlots, slotGroups) // P1
-              : shuffledSlots;
+          : shuffledSlots;
 
     const comp = greedySchedule(orderedSlots, slotGroups);
     if (comp) allResults.push(comp);
@@ -1042,64 +944,6 @@ function optimizeBalance(comp: RaidComposition, slotGroups: SlotGroup[]): RaidCo
               else { membersA[i] = mA; membersB[j] = mB; recalc(rA); recalc(rB); }
             }
           }
-        }
-      }
-    }
-
-    // P2: 제외 ↔ 배치 캐릭터 교체 (제외 인원 감소 + 균등화)
-    for (let ei = result.excludedCharacters.length - 1; ei >= 0; ei--) {
-      const excl = result.excludedCharacters[ei];
-      if (excl.is_underpowered) continue;
-
-      for (const raid of noBotRaids) {
-        const canJoin = slotGroups.some(sg =>
-          slotsOverlapWithDuration(sg.slot, raid.timeSlot) &&
-          sg.characters.some(c => c.id === excl.id)
-        );
-        if (!canJoin) continue;
-
-        const allRaidMembers = [...raid.team1.members, ...(raid.team2?.members || [])];
-        if (allRaidMembers.some(m => 'owner_id' in m && (m as any).owner_id === (excl as any).owner_id)) continue;
-
-        // 시간대 겹치는 다른 공격대와 소유주 충돌 체크
-        const ownersInOverlapping = getOwnersInOverlappingRaids(
-          result.raids.filter(r => r.id !== raid.id), raid.timeSlot
-        );
-        if (ownersInOverlapping.has((excl as any).owner_id)) continue;
-
-        for (const team of [raid.team1, raid.team2].filter(Boolean) as Team[]) {
-          let swapped = false;
-          for (let mi = 0; mi < team.members.length; mi++) {
-            const member = team.members[mi];
-            if ('isBot' in member && member.isBot) continue;
-            if (isSupport(member.class_type) !== isSupport(excl.class_type)) continue;
-            if (!isValidSwap(team.members, excl as any, member)) continue;
-            if (hasOwnerConflict(raid, excl as any, member)) continue;
-
-            const oldMember = team.members[mi];
-            team.members[mi] = { ...excl, isBot: false, ownerName: excl.ownerName } as any;
-            recalc(raid);
-            const newObj = calcObjective();
-            if (newObj < currentObj - 0.01) {
-              currentObj = newObj;
-              improved = true;
-              result.excludedCharacters.splice(ei, 1);
-              result.excludedCharacters.push({
-                id: (oldMember as any).id, owner_id: (oldMember as any).owner_id,
-                nickname: oldMember.nickname, class_type: oldMember.class_type,
-                combat_power: oldMember.combat_power,
-                can_clear_raid: (oldMember as any).can_clear_raid ?? false,
-                is_underpowered: (oldMember as any).is_underpowered ?? false,
-                ownerName: (oldMember as any).ownerName || '',
-              });
-              swapped = true;
-              break;
-            } else {
-              team.members[mi] = oldMember;
-              recalc(raid);
-            }
-          }
-          if (swapped) break;
         }
       }
     }
