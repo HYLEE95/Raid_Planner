@@ -18,8 +18,7 @@ export type BlockedOwnerSlots = Map<string, TimeSlot[]>;
 // 공통 유틸
 // ==========================================
 
-const MIN_CP = 190; // 팀 평균 전투력 기준 (K)
-const MIN_CP_FOR_BOT_RAID = 170; // 봇 동반 최소 개인 전투력 (K)
+const MIN_CP = 170; // 기준 전투력 (K)
 const RAID_DURATION = 60; // 레이드 1시간 (분)
 const MAX_BOTS_LAST = 6; // 마지막 공격대 봇 상한
 
@@ -255,8 +254,7 @@ function tryFormRaid(
   raidId: number,
   maxBotsPerRaid: number,
   usedOwnersInTimeSlot: Set<string>,
-  supportPriority?: string[], // P0: 서포터 배치 우선순위
-  preserveExtraSupports = false, // 방안A: 추가 서포터를 다른 공대용으로 보존
+  supportPriority?: string[], // P0: 서포터 배치 우선순위 (캐릭터 ID 목록)
 ): { raid: RaidGroup; usedChars: CharacterWithOwner[] } | null {
   const eligible = available.filter(
     c => !usedCharIds.has(c.id) && !usedOwnersInTimeSlot.has(c.owner_id)
@@ -352,8 +350,6 @@ function tryFormRaid(
     const can2 = team2Members.length < 4;
 
     if (isSupport(char.class_type)) {
-      // 방안A: 서포터 보존 모드 — 각 팀 필수 1명만 배치, 추가 서포터는 건너뛰어 다른 공대용으로 보존
-      if (preserveExtraSupports) continue;
       const canP1 = can1 && canPlaceSupportInTeam(team1Members, char);
       const canP2 = can2 && canPlaceSupportInTeam(team2Members, char);
       if (!canP1 && !canP2) continue;
@@ -432,8 +428,6 @@ function tryFormRaid(
   if (botCount > 0) {
     const allM = [...team1Members, ...team2Members];
     if (allM.some(m => !('isBot' in m && m.isBot) && 'is_underpowered' in m && (m as any).is_underpowered)) return null;
-    // 봇 동반 시 개인 전투력 170K 이상 필수
-    if (allM.some(m => !('isBot' in m && m.isBot) && m.combat_power < MIN_CP_FOR_BOT_RAID)) return null;
     if (calcTeamAvg(team1Members) < MIN_CP || calcTeamAvg(team2Members) < MIN_CP) return null;
   }
 
@@ -458,8 +452,8 @@ function scoreComposition(comp: RaidComposition): number {
   let score = 0;
   const totalBots = comp.raids.reduce((s, r) => s + r.botCount, 0);
 
-  // 제외 인원 패널티 (방안C: 강화 — 참여 최대화 우선)
-  score += comp.excludedCharacters.length * 50000;
+  // 제외 인원 패널티
+  score += comp.excludedCharacters.length * 30000;
 
   // 전체 봇 패널티
   score += totalBots * 500;
@@ -503,25 +497,21 @@ function scoreComposition(comp: RaidComposition): number {
     if ('owner_id' in ex && !participating.has((ex as any).owner_id)) score += 50000;
   }
 
-  // 팀 전투력 균등 (방안C: 190K 이상이면 패널티 완화, 균등성만 유지)
+  // 팀 전투력 균등 (분산 최소화)
   const validRaids = comp.raids.filter(r => r.botCount < 4);
   const allTeamAvgs: number[] = [];
   for (const raid of validRaids) {
     allTeamAvgs.push(raid.team1.avgCombatPower);
     if (raid.team2) {
       allTeamAvgs.push(raid.team2.avgCombatPower);
-      score += Math.abs(raid.team1.avgCombatPower - raid.team2.avgCombatPower) * 100;
+      score += Math.abs(raid.team1.avgCombatPower - raid.team2.avgCombatPower) * 200;
     }
   }
   if (allTeamAvgs.length > 1) {
     const mean = allTeamAvgs.reduce((a, b) => a + b, 0) / allTeamAvgs.length;
     const variance = allTeamAvgs.reduce((s, v) => s + (v - mean) ** 2, 0) / allTeamAvgs.length;
-    score += Math.sqrt(variance) * 150;
-    score += (Math.max(...allTeamAvgs) - Math.min(...allTeamAvgs)) * 250;
-  }
-  // 190K 미만 팀에 추가 패널티
-  for (const avg of allTeamAvgs) {
-    if (avg < MIN_CP) score += (MIN_CP - avg) * 1000;
+    score += Math.sqrt(variance) * 300;
+    score += (Math.max(...allTeamAvgs) - Math.min(...allTeamAvgs)) * 500;
   }
 
   // 동일 서포트 타입 2명 동일 팀 패널티
@@ -637,7 +627,6 @@ function greedySchedule(
   orderedSlots: SlotGroup[],
   slotGroups: SlotGroup[],
   supportPriority?: string[], // P0: 서포터 배치 우선순위
-  preserveExtraSupports = false, // 방안A: 서포터 보존 모드
 ): RaidComposition | null {
   const allChars = getAllUniqueChars(slotGroups);
   if (allChars.length === 0) return null;
@@ -652,7 +641,7 @@ function greedySchedule(
       const usedOwnersInSlot = getOwnersInOverlappingRaids(raids, sg.slot);
       const slotAvail = sg.characters.filter(c => !usedCharIds.has(c.id) && !usedOwnersInSlot.has(c.owner_id));
       if (slotAvail.length < 2) break;
-      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, 0, usedOwnersInSlot, supportPriority, preserveExtraSupports);
+      const result = tryFormRaid(sg.characters, usedCharIds, sg.slot, raidId, 0, usedOwnersInSlot, supportPriority);
       if (!result) break;
       raids.push(result.raid);
       for (const c of result.usedChars) usedCharIds.add(c.id);
@@ -733,6 +722,7 @@ function generateCompositions(slotGroups: SlotGroup[]): RaidComposition[] {
   for (const hp of healerPerms) {
     for (const tp of tankPerms) {
       const priority = [...hp, ...tp];
+      // 각 서포터 순열에 대해 다양한 슬롯 정렬 전략 적용
       const slotStrategies: SlotGroup[][] = [
         sortSlotsByTopDps(slotGroups, emptyUsed),
         sortSlotsBySupportScarcity(slotGroups),
@@ -741,28 +731,21 @@ function generateCompositions(slotGroups: SlotGroup[]): RaidComposition[] {
         slotGroups,
       ];
       for (const ordered of slotStrategies) {
-        // 기본 모드 (서포터 자유 배치)
         const comp = greedySchedule(ordered, slotGroups, priority);
         if (comp) allResults.push(comp);
-        // 방안A: 서포터 보존 모드 (1공대에 서포터 2명만, 나머지 보존)
-        const compPreserve = greedySchedule(ordered, slotGroups, priority, true);
-        if (compPreserve) allResults.push(compPreserve);
       }
     }
   }
 
-  // 기본 전략 + 서포터 보존 변형
-  const baseStrategies: [SlotGroup[], string][] = [
-    [sortSlotsByTopDps(slotGroups, emptyUsed), 'dps'],
-    [sortSlotsBySupportScarcity(slotGroups), 'supportScarce'],
-    [sortSlotsByOwnerConstraint(slotGroups, slotGroups), 'ownerConstrained'],
-  ];
-  for (const [ordered] of baseStrategies) {
-    const comp = greedySchedule(ordered, slotGroups);
-    if (comp) allResults.push(comp);
-    const compP = greedySchedule(ordered, slotGroups, undefined, true);
-    if (compP) allResults.push(compP);
-  }
+  // 기본 전략: DPS 높은 슬롯 우선 (서포터 우선순위 없음)
+  const dpsOrdered = greedySchedule(sortSlotsByTopDps(slotGroups, emptyUsed), slotGroups);
+  if (dpsOrdered) allResults.push(dpsOrdered);
+
+  // P1: 추가 전략들 (서포터 우선순위 없음)
+  const supportScarce = greedySchedule(sortSlotsBySupportScarcity(slotGroups), slotGroups);
+  if (supportScarce) allResults.push(supportScarce);
+  const ownerConstrained = greedySchedule(sortSlotsByOwnerConstraint(slotGroups, slotGroups), slotGroups);
+  if (ownerConstrained) allResults.push(ownerConstrained);
 
   // 셔플 기반 (P0 백트래킹 보완, 횟수 유지)
   for (let seed = 1; seed <= 3000; seed++) {
@@ -786,11 +769,6 @@ function generateCompositions(slotGroups: SlotGroup[]): RaidComposition[] {
 
     const comp = greedySchedule(orderedSlots, slotGroups);
     if (comp) allResults.push(comp);
-    // 방안A: 짝수 시드에서 서포터 보존 모드도 시도
-    if (seed % 2 === 0) {
-      const compP = greedySchedule(orderedSlots, slotGroups, undefined, true);
-      if (compP) allResults.push(compP);
-    }
   }
 
   // Rescue: 제외 인원 구제
