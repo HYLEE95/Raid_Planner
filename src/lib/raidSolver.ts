@@ -306,10 +306,15 @@ function tryFormRaid(
   addToTeam(team2Members, availHealer);
 
   // 1팀: 서포터(치유/호법) 1명 필수 (봇 사용 안 함)
+  // 호법 우선 선택 → 치유를 다른 공대용으로 보존
   const remainSupports = [...tanks, ...healers.filter(c => !usedCharIdSet.has(c.id))]
     .filter(c => !isOwnerInRaid(c.owner_id))
     .sort((a, b) => {
-      // P0: supportPriority가 있으면 우선순위 순서 적용
+      // 호법을 치유보다 우선 (치유를 다른 공대 team2용으로 보존)
+      const aIsHealer = a.class_type === '치유' ? 1 : 0;
+      const bIsHealer = b.class_type === '치유' ? 1 : 0;
+      if (aIsHealer !== bIsHealer) return aIsHealer - bIsHealer;
+      // 같은 타입 내에서 P0 우선순위 또는 전투력순
       if (supportPriority) {
         const aIdx = supportPriority.indexOf(a.id);
         const bIdx = supportPriority.indexOf(b.id);
