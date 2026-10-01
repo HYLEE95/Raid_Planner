@@ -16,7 +16,7 @@ import type { BlockedOwnerSlots } from '../../lib/raidSolver';
 import RaidResult from '../RaidResult/RaidResult';
 import WeekPicker from '../WeekPicker/WeekPicker';
 import type { DBRegistration, RaidComposition, RaidType } from '../../lib/types';
-import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
+import { RAID_TYPES, RAID_CONFIGS, isRaidComposition } from '../../lib/types';
 
 const COMP_STORAGE_KEY = 'raid-planner-compositions';
 
@@ -83,10 +83,13 @@ export default function Home() {
     try {
       // 크로스 레이드 충돌 방지: 다른 레이드의 확정된 소유주 시간대 로드
       const allConfirmed = await getAllConfirmedRaids();
-      const otherConfirmed = allConfirmed.filter(c => c.raid_type !== selectedRaid);
+      const otherConfirmed = allConfirmed.filter(
+        c => c.raid_type !== selectedRaid && isRaidComposition(c.composition)
+      );
 
       const blockedOwnerSlots: BlockedOwnerSlots = new Map();
       for (const confirmed of otherConfirmed) {
+        if (!isRaidComposition(confirmed.composition)) continue;
         for (const raid of confirmed.composition.raids) {
           const allMembers = [...raid.team1.members, ...(raid.team2?.members || [])];
           for (const m of allMembers) {

@@ -9,7 +9,7 @@ import {
 import WeekPicker from '../WeekPicker/WeekPicker';
 import RaidResult from '../RaidResult/RaidResult';
 import type { ConfirmedRaid, RaidType, RaidComposition } from '../../lib/types';
-import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
+import { RAID_TYPES, RAID_CONFIGS, isRaidComposition } from '../../lib/types';
 
 export default function Confirmed() {
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
@@ -74,7 +74,8 @@ export default function Confirmed() {
   };
 
   // RaidResult에 넘기기 위해 composition을 배열로 감싸기
-  const compositions: RaidComposition[] = confirmed ? [confirmed.composition] : [];
+  const compositions: RaidComposition[] =
+    confirmed && isRaidComposition(confirmed.composition) ? [confirmed.composition] : [];
 
   return (
     <div className="max-w-6xl mx-auto p-4">
