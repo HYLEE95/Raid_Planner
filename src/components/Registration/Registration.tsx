@@ -14,15 +14,22 @@ import {
   saveCharacterProfile,
 } from '../../lib/storage';
 import WeekPicker from '../WeekPicker/WeekPicker';
+import HuntTimePicker, { HUNT_ALL_DAY_START, HUNT_ALL_DAY_END } from '../HuntVote/HuntTimePicker';
 import type { ClassType, TimeSlot, DBRegistration, DBCharacterProfile, RaidType } from '../../lib/types';
-import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
-
-const BRI_CLASS_TYPES: ClassType[] = ['세가', '세바', '딜러'];
+import { RAID_TYPES, RAID_CONFIGS, CLASS_TYPES_BY_RAID, HIGHLIGHT_CLASSES } from '../../lib/types';
 
 const CLASS_COLORS: Record<string, string> = {
   '세가': 'bg-purple-100 text-purple-800 border-purple-300',
   '세바': 'bg-teal-100 text-teal-800 border-teal-300',
   '딜러': 'bg-rose-100 text-rose-800 border-rose-300',
+  '엘나': 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  '닼메': 'bg-violet-100 text-violet-800 border-violet-300',
+  '알스': 'bg-sky-100 text-sky-800 border-sky-300',
+  '블랜': 'bg-blue-100 text-blue-800 border-blue-300',
+  '거너': 'bg-slate-100 text-slate-800 border-slate-300',
+  '포알': 'bg-orange-100 text-orange-800 border-orange-300',
+  '멜퍼': 'bg-pink-100 text-pink-800 border-pink-300',
+  '퓨파': 'bg-lime-100 text-lime-800 border-lime-300',
 };
 
 interface CharacterForm {
@@ -45,9 +52,9 @@ interface DateTimeSelection {
   timeRanges: { start: string; end: string }[];
 }
 
-const defaultChar = (): CharacterForm => ({
+const defaultChar = (raidType?: RaidType | null): CharacterForm => ({
   nickname: '',
-  class_type: '딜러',
+  class_type: raidType === '정규사냥' ? '세바' : '딜러',
   combat_power: 0,
   can_clear_raid: false,
   is_underpowered: false,
@@ -66,7 +73,7 @@ export default function Registration() {
   const [editId, setEditId] = useState<string | null>(null);
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
   const [ownerName, setOwnerName] = useState('');
-  const [characters, setCharacters] = useState<CharacterForm[]>([defaultChar()]);
+  const [characters, setCharacters] = useState<CharacterForm[]>([defaultChar(selectedRaid)]);
   const [selectedWeek, setSelectedWeek] = useState(() => {
     const currentWeek = getWeekStartForRaid(new Date(), '브리레흐');
     const nextWeek = new Date(currentWeek);
@@ -86,7 +93,8 @@ export default function Registration() {
   const [newOwnerName, setNewOwnerName] = useState('');
   const [duplicateOwnerError, setDuplicateOwnerError] = useState('');
 
-  const classTypes = BRI_CLASS_TYPES;
+  const isHunt = selectedRaid === '정규사냥';
+  const classTypes = selectedRaid ? CLASS_TYPES_BY_RAID[selectedRaid] : CLASS_TYPES_BY_RAID['브리레흐'];
   const resetDay = selectedRaid ? RAID_CONFIGS[selectedRaid].resetDay : 3;
 
   // 레이드 변경 시 주차 재계산
@@ -96,8 +104,10 @@ export default function Registration() {
       const nextWeek = new Date(currentWeek);
       nextWeek.setDate(nextWeek.getDate() + 7);
       setSelectedWeek(formatDate(nextWeek));
-      setCharacters([defaultChar()]);
+      setCharacters([defaultChar(selectedRaid)]);
       setDateSelections([]);
+      setUseBatchTime(false);
+      setBatchAllDay(false);
       setEditId(null);
       setOwnerName('');
       setIsNewOwner(false);
@@ -237,7 +247,7 @@ export default function Registration() {
   const timeSlots = useMemo(() => generateTimeSlots(), []);
 
   const addCharacter = () => {
-    setCharacters([...characters, defaultChar()]);
+    setCharacters([...characters, defaultChar(selectedRaid)]);
   };
 
   const removeCharacter = (idx: number) => {
@@ -349,7 +359,11 @@ export default function Registration() {
             }
           }
         } else if (ds.allDay) {
-          timeSlotList.push({ date: ds.date, start_time: '00:00', end_time: '23:30' });
+          timeSlotList.push({
+            date: ds.date,
+            start_time: isHunt ? HUNT_ALL_DAY_START : '00:00',
+            end_time: isHunt ? HUNT_ALL_DAY_END : '23:30',
+          });
         } else {
           for (const tr of ds.timeRanges) {
             timeSlotList.push({ date: ds.date, start_time: tr.start, end_time: tr.end });
@@ -374,10 +388,8 @@ export default function Registration() {
       }
 
       const charData = activeChars.map(c => {
-        const base: any = {
-          nickname: c.nickname.trim(),
-          class_type: c.class_type,
-        };
+        const base: any = { nickname: c.nickname.trim(), class_type: c.class_type };
+        if (isHunt) return base;
         base.has_destruction_robe = c.has_destruction_robe;
         base.is_blast_lancer = c.is_blast_lancer;
         base.has_soul_weapon = c.has_soul_weapon;
@@ -402,10 +414,8 @@ export default function Registration() {
         const existingProfiles = await getCharacterProfiles(selectedRaid!);
         const existing = existingProfiles.find(p => p.owner_name === ownerName.trim());
         const profileChars = characters.map(c => {
-          const base: any = {
-            nickname: c.nickname.trim(),
-            class_type: c.class_type,
-          };
+          const base: any = { nickname: c.nickname.trim(), class_type: c.class_type };
+          if (isHunt) return base;
           base.has_destruction_robe = c.has_destruction_robe;
           base.has_soul_weapon = c.has_soul_weapon;
           base.desired_clears = c.desired_clears;
@@ -438,7 +448,7 @@ export default function Registration() {
       setIsNewOwner(false);
       setNewOwnerName('');
       setDuplicateOwnerError('');
-      setCharacters([defaultChar()]);
+      setCharacters([defaultChar(selectedRaid)]);
       setDateSelections([]);
       // 프로필 목록 갱신 (신규 작성자가 추가되었으므로)
       getCharacterProfiles(selectedRaid!).then(setOwnerProfiles).catch(console.error);
@@ -518,7 +528,7 @@ export default function Registration() {
                 setOwnerName('');
                 setNewOwnerName('');
                 setDuplicateOwnerError('');
-                setCharacters([defaultChar()]);
+                setCharacters([defaultChar(selectedRaid)]);
                 setDateSelections([]);
                 setEditId(null);
               } else {
@@ -558,7 +568,7 @@ export default function Registration() {
                   setOwnerName('');
                   setNewOwnerName('');
                   setDuplicateOwnerError('');
-                  setCharacters([defaultChar()]);
+                  setCharacters([defaultChar(selectedRaid)]);
                   setDateSelections([]);
                   setEditId(null);
                 }}
@@ -649,7 +659,7 @@ export default function Registration() {
                           char.class_type === ct
                             ? (CLASS_COLORS[ct] || '') + ' font-bold'
                             : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
-                        }`}
+                        } ${HIGHLIGHT_CLASSES.includes(ct) ? 'ring-2 ring-amber-400' : ''}`}
                       >
                         {ct}
                       </button>
@@ -658,6 +668,7 @@ export default function Registration() {
                 </div>
 
                 {/* 브리레흐 전용: 파멸의 로브, 소울 무기, 희망 클리어 횟수 */}
+                {!isHunt && (<>
                 <div className="flex flex-col gap-2 justify-end">
                   <label className={`flex items-center gap-2 ${char.is_blast_lancer ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
                     <input
@@ -701,6 +712,7 @@ export default function Registration() {
                     ))}
                   </select>
                 </div>
+                </>)}
               </div>
             </div>
           ))}
@@ -708,6 +720,13 @@ export default function Registration() {
       </section>
 
       {/* 날짜 선택 */}
+      {isHunt ? (
+        <HuntTimePicker
+          weekDates={weekDates}
+          selections={dateSelections}
+          onChange={setDateSelections}
+        />
+      ) : (
       <section className="mb-6">
         <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3">가능 날짜 선택</h2>
         <div className="flex gap-2 flex-wrap mb-4">
@@ -909,6 +928,7 @@ export default function Registration() {
             );
           })}
       </section>
+      )}
 
       {/* 제출 버튼 */}
       <button

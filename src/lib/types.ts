@@ -51,7 +51,7 @@ export const RAID_CONFIGS: Record<RaidType, RaidConfig> = {
   },
 };
 
-export const RAID_TYPES: RaidType[] = ['브리레흐'];
+export const RAID_TYPES: RaidType[] = ['브리레흐', '정규사냥'];
 
 export interface Character {
   id: string;
