@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getWeekStartForRaid,
@@ -65,6 +65,16 @@ const defaultChar = (raidType?: RaidType | null): CharacterForm => ({
   desired_clears: 3,
 });
 
+// 저장된 시간대 범위가 "시간 무관"으로 저장된 것인지 레이드별로 판정한다.
+// 정규 사냥은 09:00~익일 01:00, 그 외(브리레흐)는 00:00~23:30이 "시간 무관" 값이다.
+function isAllDayRange(raidType: RaidType, timeRanges: { start: string; end: string }[]): boolean {
+  if (timeRanges.length !== 1) return false;
+  const { start, end } = timeRanges[0];
+  return raidType === '정규사냥'
+    ? start === HUNT_ALL_DAY_START && end === HUNT_ALL_DAY_END
+    : start === '00:00' && end === '23:30';
+}
+
 export default function Registration() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -97,9 +107,18 @@ export default function Registration() {
   const classTypes = selectedRaid ? CLASS_TYPES_BY_RAID[selectedRaid] : CLASS_TYPES_BY_RAID['브리레흐'];
   const resetDay = selectedRaid ? RAID_CONFIGS[selectedRaid].resetDay : 3;
 
+  // 수정 모드 진입(editData) 직후 1회에 한해, 레이드 변경 리셋 effect를 건너뛰기 위한 플래그.
+  // editData가 setSelectedRaid를 호출하면 레이드 변경 effect도 함께 트리거되는데,
+  // 그대로 두면 방금 복원한 characters/dateSelections 등을 바로 초기화해버린다.
+  const skipNextRaidResetRef = useRef(false);
+
   // 레이드 변경 시 주차 재계산
   useEffect(() => {
     if (selectedRaid) {
+      if (skipNextRaidResetRef.current) {
+        skipNextRaidResetRef.current = false;
+        return;
+      }
       const currentWeek = getWeekStartForRaid(new Date(), selectedRaid);
       const nextWeek = new Date(currentWeek);
       nextWeek.setDate(nextWeek.getDate() + 7);
@@ -119,6 +138,7 @@ export default function Registration() {
   // 수정 모드: 전달된 데이터로 폼 초기화
   useEffect(() => {
     if (!editData) return;
+    skipNextRaidResetRef.current = true;
     setEditId(editData.id);
     setSelectedRaid(editData.raid_type);
     setOwnerName(editData.owner_name);
@@ -145,7 +165,7 @@ export default function Registration() {
     }
     setDateSelections(
       Array.from(dateMap.entries()).map(([date, timeRanges]) => {
-        const isAllDay = timeRanges.length === 1 && timeRanges[0].start === '00:00' && timeRanges[0].end === '23:30';
+        const isAllDay = isAllDayRange(editData.raid_type, timeRanges);
         return { date, allDay: isAllDay, timeRanges };
       })
     );
@@ -188,7 +208,7 @@ export default function Registration() {
         }
         setDateSelections(
           Array.from(dateMap.entries()).map(([date, timeRanges]) => {
-            const isAllDay = timeRanges.length === 1 && timeRanges[0].start === '00:00' && timeRanges[0].end === '23:30';
+            const isAllDay = isAllDayRange(existingReg.raid_type, timeRanges);
             return { date, allDay: isAllDay, timeRanges };
           })
         );
@@ -659,7 +679,7 @@ export default function Registration() {
                           char.class_type === ct
                             ? (CLASS_COLORS[ct] || '') + ' font-bold'
                             : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
-                        } ${HIGHLIGHT_CLASSES.includes(ct) ? 'ring-2 ring-amber-400' : ''}`}
+                        } ${isHunt && HIGHLIGHT_CLASSES.includes(ct) ? 'ring-2 ring-amber-400' : ''}`}
                       >
                         {ct}
                       </button>
