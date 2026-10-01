@@ -15,6 +15,7 @@ import { solveBriRaidComposition } from '../../lib/raidSolver';
 import type { BlockedOwnerSlots } from '../../lib/raidSolver';
 import RaidResult from '../RaidResult/RaidResult';
 import WeekPicker from '../WeekPicker/WeekPicker';
+import HuntVoteBoard from '../HuntVote/HuntVoteBoard';
 import type { DBRegistration, RaidComposition, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS, isRaidComposition } from '../../lib/types';
 
@@ -155,7 +156,9 @@ export default function Home() {
 
   return (
     <div className="max-w-6xl mx-auto p-4">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">공격대 배치</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-6">
+        {selectedRaid && RAID_CONFIGS[selectedRaid].isVoteOnly ? '투표 결과 · 시간대 배분' : '공격대 배치'}
+      </h1>
 
       {/* 레이드 선택 */}
       <div className="mb-4">
@@ -182,6 +185,23 @@ export default function Home() {
 
       {/* 레이드 선택 후에만 하위 콘텐츠 표시 */}
       {selectedRaid && (
+        RAID_CONFIGS[selectedRaid].isVoteOnly ? (
+          <>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">주차 선택</label>
+              <WeekPicker
+                value={selectedWeek}
+                onChange={setSelectedWeek}
+                resetDay={RAID_CONFIGS[selectedRaid].resetDay}
+              />
+            </div>
+            <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
+              투표 인원 {registrations.length}명 · 캐릭터{' '}
+              {registrations.reduce((s, r) => s + r.characters.length, 0)}개
+            </div>
+            <HuntVoteBoard registrations={registrations} weekStart={selectedWeek} />
+          </>
+        ) : (
         <>
           {/* 주차 선택 + 배치 버튼 */}
           <div className="mb-6 flex items-end gap-3 flex-wrap">
@@ -343,6 +363,7 @@ export default function Home() {
             />
           )}
         </>
+        )
       )}
     </div>
   );
