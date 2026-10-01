@@ -1,39 +1,21 @@
-export type ClassType = '근딜' | '원딜' | '호법' | '치유' | '세가' | '세바' | '딜러';
+export type ClassType = '세가' | '세바' | '딜러';
 
 // 레이드 타입
-export type RaidType = '루드라' | '브리레흐';
+export type RaidType = '브리레흐';
 
 export interface RaidConfig {
   name: RaidType;
   label: string;
   resetDay: number;           // 주간 초기화 요일 (3=수, 4=목)
-  teamsPerRaid: number;       // 팀 수 (루드라: 2, 브리레흐: 1)
+  teamsPerRaid: number;       // 팀 수 (브리레흐: 1)
   membersPerTeam: number;     // 팀당 인원
   minPartySize?: number;      // 최소 파티 인원 (브리레흐: 4)
   maxPartySize?: number;      // 최대 파티 인원 (브리레흐: 8)
   durationHours: number;      // 소요 시간
   maxBots: number;            // 최대 봇 수
-  // 팀별 서포트 규칙 (루드라용)
-  teamRules?: {
-    team1: { supportType: ('치유' | '호법')[]; exactCount: number };
-    team2: { supportType: ('치유')[]; exactCount: number };
-  };
 }
 
 export const RAID_CONFIGS: Record<RaidType, RaidConfig> = {
-  '루드라': {
-    name: '루드라',
-    label: '루드라',
-    resetDay: 3, // 수요일
-    teamsPerRaid: 2,
-    membersPerTeam: 4,
-    durationHours: 1,
-    maxBots: 4,
-    teamRules: {
-      team1: { supportType: ['치유', '호법'], exactCount: 1 },
-      team2: { supportType: ['치유'], exactCount: 1 },
-    },
-  },
   '브리레흐': {
     name: '브리레흐',
     label: '브리레흐 1-3관문',
@@ -47,7 +29,7 @@ export const RAID_CONFIGS: Record<RaidType, RaidConfig> = {
   },
 };
 
-export const RAID_TYPES: RaidType[] = ['루드라', '브리레흐'];
+export const RAID_TYPES: RaidType[] = ['브리레흐'];
 
 export interface Character {
   id: string;

@@ -1,12 +1,8 @@
 import { useState, useMemo } from 'react';
-import type { RaidComposition, RaidGroup, RaidMember, RaidType, DBRegistration, BotCharacter } from '../../lib/types';
+import type { RaidComposition, RaidGroup, RaidMember, DBRegistration, BotCharacter } from '../../lib/types';
 import { calcTeamAvg } from '../../lib/raidSolver';
 
 const CLASS_BADGE: Record<string, string> = {
-  '근딜': 'bg-red-500 text-white',
-  '원딜': 'bg-blue-500 text-white',
-  '호법': 'bg-yellow-500 text-white',
-  '치유': 'bg-green-500 text-white',
   '세가': 'bg-purple-500 text-white',
   '세바': 'bg-teal-500 text-white',
   '딜러': 'bg-rose-500 text-white',
@@ -164,11 +160,9 @@ function buildSwapOptions(
   currentRaidId: number,
   currentTeamKey: 'team1' | 'team2',
   currentMemberIdx: number,
-  raidType?: RaidType,
   registrations?: DBRegistration[],
 ): SwapOption[] {
   const options: SwapOption[] = [];
-  const isBri = raidType === '브리레흐';
 
   // 현재 공격대/파티에서 교체 대상 제외한 나머지 소유주 목록 (소유주 중복 방지)
   const currentRaid = comp.raids.find(r => r.id === currentRaidId);
@@ -194,8 +188,7 @@ function buildSwapOptions(
     if (sameRaidOwners.has(char.ownerName)) continue;
     // 해당 시간대에 참여 불가능하면 선택지에서 제외
     if (currentRaid && !canMemberParticipateInSlot(char as any, currentRaid.timeSlot, registrations)) continue;
-    let label = `${char.nickname} (${char.ownerName}) - ${char.class_type}`;
-    if (!isBri && char.combat_power > 0) label += ` ${char.combat_power}K`;
+    const label = `${char.nickname} (${char.ownerName}) - ${char.class_type}`;
     options.push({ label, value: `ex:${i}`, group: '빠지는 인원' });
   }
 
@@ -223,12 +216,8 @@ function buildSwapOptions(
         if (currentRaid && !canMemberParticipateInSlot(member, currentRaid.timeSlot, registrations)) return;
 
         const ownerInfo = !isBot && 'ownerName' in member ? ` (${(member as any).ownerName})` : '';
-        let label = `${member.nickname}${ownerInfo} - ${member.class_type}`;
-        if (!isBri && member.combat_power > 0) label += ` ${member.combat_power}K`;
-
-        const raidLabel = isBri
-          ? `파티 ${raid.id}`
-          : `공격대 ${raid.id} ${teamKey === 'team1' ? '1팀' : '2팀'}`;
+        const label = `${member.nickname}${ownerInfo} - ${member.class_type}`;
+        const raidLabel = `파티 ${raid.id}`;
 
         options.push({ label, value: `mem:${raid.id}:${teamKey}:${mIdx}`, group: raidLabel });
       });
@@ -247,13 +236,11 @@ function buildSwapOptions(
 
 function MemberCard({
   member,
-  raidType,
   swapOptions,
   onSwap,
   onRemove,
 }: {
   member: RaidMember;
-  raidType?: RaidType;
   swapOptions?: SwapOption[];
   onSwap?: (value: string) => void;
   onRemove?: () => void;
@@ -261,7 +248,6 @@ function MemberCard({
   const [showSwap, setShowSwap] = useState(false);
   const isBot = 'isBot' in member && member.isBot;
   const isUnderpowered = !isBot && 'is_underpowered' in member && (member as any).is_underpowered;
-  const isBri = raidType === '브리레흐';
 
   const groupedOptions = useMemo(() => {
     if (!swapOptions) return [];
@@ -297,16 +283,13 @@ function MemberCard({
         {isUnderpowered && (
           <span className="px-1 py-0.5 bg-orange-100 text-orange-600 text-[10px] rounded border border-orange-200 shrink-0 whitespace-nowrap">저스펙</span>
         )}
-        {!isBri && (
-          <span className="text-xs text-gray-500 shrink-0 whitespace-nowrap">{member.combat_power}K</span>
-        )}
-        {isBri && !isBot && 'has_destruction_robe' in member && (member as any).has_destruction_robe && (
+        {!isBot && 'has_destruction_robe' in member && (member as any).has_destruction_robe && (
           <span className="px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700 shrink-0 whitespace-nowrap">파롭</span>
         )}
-        {isBri && !isBot && 'is_blast_lancer' in member && (member as any).is_blast_lancer && (
+        {!isBot && 'is_blast_lancer' in member && (member as any).is_blast_lancer && (
           <span className="px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-[10px] rounded border border-blue-200 dark:border-blue-700 shrink-0 whitespace-nowrap">블랜</span>
         )}
-        {isBri && !isBot && 'has_soul_weapon' in member && (member as any).has_soul_weapon && (
+        {!isBot && 'has_soul_weapon' in member && (member as any).has_soul_weapon && (
           <span className="px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700 shrink-0 whitespace-nowrap">소울</span>
         )}
         {!isBot && 'ownerName' in member && (
@@ -359,7 +342,6 @@ function MemberCard({
 function TeamCard({
   team,
   label,
-  raidType,
   swapOptionsForMember,
   onSwapMember,
   onAddMember,
@@ -367,40 +349,30 @@ function TeamCard({
 }: {
   team: { members: RaidMember[]; avgCombatPower: number };
   label: string;
-  raidType?: RaidType;
   swapOptionsForMember?: (memberIdx: number) => SwapOption[];
   onSwapMember?: (memberIdx: number, value: string) => void;
   onAddMember?: () => void;
   onRemoveMember?: (memberIdx: number) => void;
 }) {
-  const isBri = raidType === '브리레흐';
   return (
     <div className="flex-1 min-w-[140px]">
       <div className="flex items-center justify-between mb-2">
         <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">{label}</h4>
-        {!isBri && (
-          <span className="text-xs text-gray-600 dark:text-gray-400">
-            평균(딜러) {team.avgCombatPower.toFixed(1)}K
-          </span>
-        )}
-        {isBri && (
-          <span className="text-xs text-gray-600 dark:text-gray-400">
-            {team.members.length}인
-          </span>
-        )}
+        <span className="text-xs text-gray-600 dark:text-gray-400">
+          {team.members.length}인
+        </span>
       </div>
       <div className="space-y-1">
         {team.members.map((member, idx) => (
           <MemberCard
             key={idx}
             member={member}
-            raidType={raidType}
             swapOptions={swapOptionsForMember ? swapOptionsForMember(idx) : undefined}
             onSwap={onSwapMember ? (val) => onSwapMember(idx, val) : undefined}
             onRemove={onRemoveMember ? () => onRemoveMember(idx) : undefined}
           />
         ))}
-        {isBri && onAddMember && team.members.length < 8 && (
+        {onAddMember && team.members.length < 8 && (
           <button
             onClick={onAddMember}
             className="w-full py-1.5 rounded border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-indigo-400 hover:text-indigo-600 dark:hover:border-indigo-500 dark:hover:text-indigo-400 transition-colors flex items-center justify-center gap-1 text-xs font-medium"
@@ -418,7 +390,6 @@ function TeamCard({
 
 function RaidGroupCard({
   raid,
-  raidType,
   weekDates,
   registrations,
   comp,
@@ -430,7 +401,6 @@ function RaidGroupCard({
   onRemoveMember,
 }: {
   raid: RaidGroup;
-  raidType?: RaidType;
   weekDates: string[];
   registrations?: DBRegistration[];
   comp?: RaidComposition;
@@ -442,7 +412,6 @@ function RaidGroupCard({
   onRemoveMember?: (memberIdx: number) => void;
 }) {
   const [showAllSlots, setShowAllSlots] = useState(false);
-  const isBri = raidType === '브리레흐';
   const endTime = minutesToTime(timeToMinutes(raid.timeSlot.start_time) + 60);
 
   // 가용 시간대 계산
@@ -460,7 +429,7 @@ function RaidGroupCard({
   // 교체 옵션 빌드
   const getSwapOptions = (teamKey: 'team1' | 'team2', memberIdx: number): SwapOption[] => {
     if (!comp) return [];
-    return buildSwapOptions(comp, raid.id, teamKey, memberIdx, raidType, registrations);
+    return buildSwapOptions(comp, raid.id, teamKey, memberIdx, registrations);
   };
 
   return (
@@ -468,7 +437,7 @@ function RaidGroupCard({
       <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
         <div className="flex items-center gap-2">
           <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-            {isBri ? `파티 ${raid.id}` : `공격대 ${raid.id}`}
+            파티 {raid.id}
           </h3>
           {onDelete && raid.isManual && (
             <button
@@ -531,16 +500,9 @@ function RaidGroupCard({
               추가 시간대
             </label>
           )}
-          {!isBri && (
-            <span className="text-sm font-medium text-indigo-600">
-              평균(딜러) {raid.avgCombatPower.toFixed(1)}K
-            </span>
-          )}
-          {isBri && (
-            <span className="text-sm font-medium text-indigo-600">
-              {raid.team1.members.length}인 파티
-            </span>
-          )}
+          <span className="text-sm font-medium text-indigo-600">
+            {raid.team1.members.length}인 파티
+          </span>
           {raid.botCount > 0 && (
             <span className="px-2 py-0.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded">
               공방인원 {raid.botCount}명
@@ -550,66 +512,26 @@ function RaidGroupCard({
       </div>
 
       <div className="flex gap-4 flex-wrap">
-        {isBri ? (
-          <TeamCard
-            team={raid.team1}
-            label="파티원"
-            raidType={raidType}
-            swapOptionsForMember={onSwapMember ? (mIdx) => getSwapOptions('team1', mIdx) : undefined}
-            onSwapMember={onSwapMember ? (mIdx, val) => onSwapMember('team1', mIdx, val) : undefined}
-            onAddMember={onAddMember}
-            onRemoveMember={onRemoveMember}
-          />
-        ) : (
-          <>
-            <TeamCard
-              team={raid.team1}
-              label="1팀"
-              raidType={raidType}
-              swapOptionsForMember={onSwapMember ? (mIdx) => getSwapOptions('team1', mIdx) : undefined}
-              onSwapMember={onSwapMember ? (mIdx, val) => onSwapMember('team1', mIdx, val) : undefined}
-            />
-            {raid.team2 && (
-              <TeamCard
-                team={raid.team2}
-                label="2팀"
-                raidType={raidType}
-                swapOptionsForMember={onSwapMember ? (mIdx) => getSwapOptions('team2', mIdx) : undefined}
-                onSwapMember={onSwapMember ? (mIdx, val) => onSwapMember('team2', mIdx, val) : undefined}
-              />
-            )}
-          </>
-        )}
+        <TeamCard
+          team={raid.team1}
+          label="파티원"
+          swapOptionsForMember={onSwapMember ? (mIdx) => getSwapOptions('team1', mIdx) : undefined}
+          onSwapMember={onSwapMember ? (mIdx, val) => onSwapMember('team1', mIdx, val) : undefined}
+          onAddMember={onAddMember}
+          onRemoveMember={onRemoveMember}
+        />
       </div>
     </div>
   );
 }
 
 // 조합 요약 정보
-function CompositionSummary({ comp, raidType }: { comp: RaidComposition; raidType?: RaidType }) {
-  const isBri = raidType === '브리레흐';
+function CompositionSummary({ comp }: { comp: RaidComposition }) {
   const totalBots = comp.raids.reduce((s, r) => s + r.botCount, 0);
-
-  if (isBri) {
-    return (
-      <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
-        <span>파티 {comp.raids.length}개</span>
-        {totalBots > 0 && <span>공방인원 {totalBots}명</span>}
-        {comp.excludedCharacters.length > 0 && (
-          <span className="text-orange-500">제외 {comp.excludedCharacters.length}명</span>
-        )}
-      </div>
-    );
-  }
-
-  const avgPower = comp.raids.length > 0
-    ? (comp.raids.reduce((s, r) => s + r.avgCombatPower, 0) / comp.raids.length).toFixed(1)
-    : '0';
 
   return (
     <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
-      <span>공격대 {comp.raids.length}개</span>
-      <span>평균(딜러) {avgPower}K</span>
+      <span>파티 {comp.raids.length}개</span>
       {totalBots > 0 && <span>공방인원 {totalBots}명</span>}
       {comp.excludedCharacters.length > 0 && (
         <span className="text-orange-500">제외 {comp.excludedCharacters.length}명</span>
@@ -624,16 +546,14 @@ interface RaidResultProps {
   onSelectIndex: (idx: number) => void;
   onConfirm?: (comp: RaidComposition) => void;
   onUpdate?: (compositions: RaidComposition[]) => void;
-  raidType?: RaidType;
   weekStart?: string;
   registrations?: DBRegistration[];
 }
 
-export default function RaidResult({ compositions, onConfirm, onUpdate, raidType, weekStart, registrations }: RaidResultProps) {
+export default function RaidResult({ compositions, onConfirm, onUpdate, weekStart, registrations }: RaidResultProps) {
   const [expandedSet, setExpandedSet] = useState<Set<number>>(new Set());
 
   const weekDates = weekStart ? getWeekDates(weekStart) : [];
-  const isBri = raidType === '브리레흐';
 
   if (compositions.length === 0) {
     return (
@@ -847,43 +767,18 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
     const defaultDate = weekDates.length > 0 ? weekDates[0] : '2026-01-01';
     const defaultSlot = { date: defaultDate, start_time: '21:00', end_time: '22:00' };
 
-    let newRaid: RaidGroup;
-    if (isBri) {
-      const botMembers: RaidMember[] = [];
-      for (let i = 0; i < 4; i++) {
-        botMembers.push({ isBot: true, nickname: `공방인원${i + 1}`, class_type: '딜러', combat_power: 0 });
-      }
-      newRaid = {
-        id: newRaidId,
-        team1: { members: botMembers, avgCombatPower: 0 },
-        avgCombatPower: 0,
-        botCount: 4,
-        timeSlot: defaultSlot,
-        isManual: true,
-      };
-    } else {
-      const team1Bots: RaidMember[] = [
-        { isBot: true, nickname: `공방인원1`, class_type: '호법', combat_power: 0 },
-        { isBot: true, nickname: `공방인원2`, class_type: '근딜', combat_power: 0 },
-        { isBot: true, nickname: `공방인원3`, class_type: '원딜', combat_power: 0 },
-        { isBot: true, nickname: `공방인원4`, class_type: '원딜', combat_power: 0 },
-      ];
-      const team2Bots: RaidMember[] = [
-        { isBot: true, nickname: `공방인원5`, class_type: '치유', combat_power: 0 },
-        { isBot: true, nickname: `공방인원6`, class_type: '근딜', combat_power: 0 },
-        { isBot: true, nickname: `공방인원7`, class_type: '원딜', combat_power: 0 },
-        { isBot: true, nickname: `공방인원8`, class_type: '원딜', combat_power: 0 },
-      ];
-      newRaid = {
-        id: newRaidId,
-        team1: { members: team1Bots, avgCombatPower: 0 },
-        team2: { members: team2Bots, avgCombatPower: 0 },
-        avgCombatPower: 0,
-        botCount: 8,
-        timeSlot: defaultSlot,
-        isManual: true,
-      };
+    const botMembers: RaidMember[] = [];
+    for (let i = 0; i < 4; i++) {
+      botMembers.push({ isBot: true, nickname: `공방인원${i + 1}`, class_type: '딜러', combat_power: 0 });
     }
+    const newRaid: RaidGroup = {
+      id: newRaidId,
+      team1: { members: botMembers, avgCombatPower: 0 },
+      avgCombatPower: 0,
+      botCount: 4,
+      timeSlot: defaultSlot,
+      isManual: true,
+    };
 
     updateComp(compIdx, { ...comp, raids: [...comp.raids, newRaid] });
   };
@@ -980,7 +875,7 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
             >
               <div className="flex items-center gap-3">
                 <span className="text-base font-bold text-gray-900 dark:text-gray-100">조합 {idx + 1}</span>
-                <CompositionSummary comp={comp} raidType={raidType} />
+                <CompositionSummary comp={comp} />
               </div>
               <div className="flex items-center gap-2">
                 {onConfirm && (
@@ -1018,7 +913,6 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
                     <RaidGroupCard
                       key={raid.id}
                       raid={raid}
-                      raidType={raidType}
                       weekDates={weekDates}
                       registrations={registrations}
                       comp={onUpdate ? comp : undefined}
@@ -1026,8 +920,8 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
                       onTimeChange={onUpdate ? (time) => handleTimeChange(idx, raid.id, time) : undefined}
                       onSwapMember={onUpdate ? (team, mIdx, val) => handleSwap(idx, raid.id, team, mIdx, val) : undefined}
                       onDelete={onUpdate && raid.isManual ? () => handleDeleteRaid(idx, raid.id) : undefined}
-                      onAddMember={onUpdate && isBri ? () => handleAddMemberToParty(idx, raid.id) : undefined}
-                      onRemoveMember={onUpdate && isBri ? (mIdx) => handleRemoveMemberFromParty(idx, raid.id, mIdx) : undefined}
+                      onAddMember={onUpdate ? () => handleAddMemberToParty(idx, raid.id) : undefined}
+                      onRemoveMember={onUpdate ? (mIdx) => handleRemoveMemberFromParty(idx, raid.id, mIdx) : undefined}
                     />
                   ))}
                 </div>
@@ -1041,7 +935,7 @@ export default function RaidResult({ compositions, onConfirm, onUpdate, raidType
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
                     </svg>
-                    {isBri ? '파티 추가' : '공격대 추가'}
+                    파티 추가
                   </button>
                 )}
 

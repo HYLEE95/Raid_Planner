@@ -10,14 +10,9 @@ import {
 import type { ClassType, DBCharacterProfile, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
 
-const RUDRA_CLASS_TYPES: ClassType[] = ['근딜', '원딜', '호법', '치유'];
 const BRI_CLASS_TYPES: ClassType[] = ['세가', '세바', '딜러'];
 
 const CLASS_COLORS: Record<string, string> = {
-  '근딜': 'bg-red-100 text-red-800 border-red-300',
-  '원딜': 'bg-blue-100 text-blue-800 border-blue-300',
-  '호법': 'bg-yellow-100 text-yellow-800 border-yellow-300',
-  '치유': 'bg-green-100 text-green-800 border-green-300',
   '세가': 'bg-purple-100 text-purple-800 border-purple-300',
   '세바': 'bg-teal-100 text-teal-800 border-teal-300',
   '딜러': 'bg-rose-100 text-rose-800 border-rose-300',
@@ -36,9 +31,9 @@ interface CharacterForm {
   desired_clears: number;
 }
 
-const defaultChar = (raidType?: RaidType | null): CharacterForm => ({
+const defaultChar = (): CharacterForm => ({
   nickname: '',
-  class_type: raidType === '브리레흐' ? '딜러' : '근딜',
+  class_type: '딜러',
   combat_power: 0,
   can_clear_raid: false,
   is_underpowered: false,
@@ -60,8 +55,7 @@ export default function CharacterInput() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const isBri = selectedRaid === '브리레흐';
-  const classTypes = isBri ? BRI_CLASS_TYPES : RUDRA_CLASS_TYPES;
+  const classTypes = BRI_CLASS_TYPES;
 
   useEffect(() => {
     if (!selectedRaid) { setProfiles([]); return; }
@@ -77,7 +71,7 @@ export default function CharacterInput() {
   };
 
   const addCharacter = () => {
-    setCharacters([...characters, defaultChar(selectedRaid)]);
+    setCharacters([...characters, defaultChar()]);
   };
 
   const removeCharacter = (idx: number) => {
@@ -88,14 +82,6 @@ export default function CharacterInput() {
   const updateCharacter = (idx: number, field: keyof CharacterForm, value: any) => {
     const updated = [...characters];
     (updated[idx] as any)[field] = value;
-    if (!isBri) {
-      if (field === 'can_clear_raid' && value === true) updated[idx].is_underpowered = false;
-      if (field === 'is_underpowered' && value === true) updated[idx].can_clear_raid = false;
-      if (field === 'class_type' && (value === '치유' || value === '호법')) {
-        updated[idx].can_clear_raid = false;
-        updated[idx].is_underpowered = false;
-      }
-    }
     setCharacters(updated);
   };
 
@@ -103,7 +89,6 @@ export default function CharacterInput() {
     if (!selectedRaid) return false;
     if (!ownerName.trim()) return false;
     if (characters.some(c => !c.nickname.trim())) return false;
-    if (!isBri && characters.some(c => (c.combat_power ?? 0) <= 0)) return false;
     const nicknames = characters.map(c => c.nickname.trim());
     if (new Set(nicknames).size !== nicknames.length) return false;
     // 소유주 이름 중복 체크 (신규 입력 시)
@@ -120,16 +105,10 @@ export default function CharacterInput() {
           nickname: c.nickname.trim(),
           class_type: c.class_type,
         };
-        if (isBri) {
-          base.has_destruction_robe = c.has_destruction_robe;
-          base.is_blast_lancer = c.is_blast_lancer;
-          base.has_soul_weapon = c.has_soul_weapon;
-          base.desired_clears = c.desired_clears;
-        } else {
-          base.combat_power = c.combat_power;
-          base.can_clear_raid = c.can_clear_raid;
-          base.is_underpowered = c.is_underpowered;
-        }
+        base.has_destruction_robe = c.has_destruction_robe;
+        base.is_blast_lancer = c.is_blast_lancer;
+        base.has_soul_weapon = c.has_soul_weapon;
+        base.desired_clears = c.desired_clears;
         return base;
       });
 
@@ -174,7 +153,7 @@ export default function CharacterInput() {
   const resetForm = () => {
     setEditId(null);
     setOwnerName('');
-    setCharacters([defaultChar(selectedRaid)]);
+    setCharacters([defaultChar()]);
   };
 
   const handleEdit = (profile: DBCharacterProfile) => {
@@ -221,14 +200,11 @@ export default function CharacterInput() {
   };
 
   const formatCharInfo = (c: DBCharacterProfile['characters'][0]) => {
-    if (isBri) {
-      const tags = [];
-      if (c.has_destruction_robe) tags.push('파롭');
-      if (c.is_blast_lancer) tags.push('블랜');
-      if (c.has_soul_weapon) tags.push('소울');
-      return `${c.nickname}(${c.class_type}${tags.length ? '/' + tags.join('/') : ''})`;
-    }
-    return `${c.nickname}(${c.class_type}/${c.combat_power}K)`;
+    const tags = [];
+    if (c.has_destruction_robe) tags.push('파롭');
+    if (c.is_blast_lancer) tags.push('블랜');
+    if (c.has_soul_weapon) tags.push('소울');
+    return `${c.nickname}(${c.class_type}${tags.length ? '/' + tags.join('/') : ''})`;
   };
 
   return (
@@ -403,101 +379,50 @@ export default function CharacterInput() {
                             </div>
                           </div>
 
-                          {/* 루드라 전용 */}
-                          {!isBri && (
-                            <>
-                              <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">전투력 (K)</label>
-                                <input
-                                  type="number"
-                                  value={char.combat_power || ''}
-                                  onChange={e => updateCharacter(idx, 'combat_power', parseFloat(e.target.value) || 0)}
-                                  placeholder="예: 150"
-                                  min={0}
-                                  step={0.1}
-                                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                                />
-                              </div>
-                              <div className="flex flex-col gap-2 justify-end">
-                                {(() => {
-                                  const isSupport = char.class_type === '치유' || char.class_type === '호법';
-                                  return (
-                                    <>
-                                      <label className={`flex items-center gap-2 ${isSupport || char.is_underpowered ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                        <input
-                                          type="checkbox"
-                                          checked={isSupport ? false : char.can_clear_raid}
-                                          disabled={isSupport || char.is_underpowered}
-                                          onChange={e => updateCharacter(idx, 'can_clear_raid', e.target.checked)}
-                                          className="w-4 h-4 text-indigo-600"
-                                        />
-                                        <span className="text-sm text-gray-700 dark:text-gray-300">공팟 가도 상관 없음</span>
-                                      </label>
-                                      <label className={`flex items-center gap-2 ${isSupport || char.can_clear_raid ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                        <input
-                                          type="checkbox"
-                                          checked={isSupport ? false : char.is_underpowered}
-                                          disabled={isSupport || char.can_clear_raid}
-                                          onChange={e => updateCharacter(idx, 'is_underpowered', e.target.checked)}
-                                          className="w-4 h-4 text-orange-500"
-                                        />
-                                        <span className="text-sm text-gray-700 dark:text-gray-300">공팟 스펙 미달(저스펙)</span>
-                                      </label>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-                            </>
-                          )}
-
                           {/* 브리레흐 전용 */}
-                          {isBri && (
-                            <>
-                              <div className="flex flex-col gap-2 justify-end">
-                                <label className={`flex items-center gap-2 ${char.is_blast_lancer ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={char.has_destruction_robe}
-                                    onChange={e => updateCharacter(idx, 'has_destruction_robe', e.target.checked)}
-                                    disabled={char.is_blast_lancer}
-                                    className="w-4 h-4 text-purple-600"
-                                  />
-                                  <span className="text-sm text-gray-700 dark:text-gray-300">파멸의 로브 보유</span>
-                                </label>
-                                <label className={`flex items-center gap-2 ${char.has_destruction_robe || char.class_type !== '딜러' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                  <input
-                                    type="checkbox"
-                                    checked={!!char.is_blast_lancer}
-                                    onChange={e => updateCharacter(idx, 'is_blast_lancer', e.target.checked)}
-                                    disabled={char.has_destruction_robe || char.class_type !== '딜러'}
-                                    className="w-4 h-4 text-blue-600"
-                                  />
-                                  <span className="text-sm text-gray-700 dark:text-gray-300">블래스트 랜서</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={char.has_soul_weapon}
-                                    onChange={e => updateCharacter(idx, 'has_soul_weapon', e.target.checked)}
-                                    className="w-4 h-4 text-amber-600"
-                                  />
-                                  <span className="text-sm text-gray-700 dark:text-gray-300">소울 무기 보유</span>
-                                </label>
-                              </div>
-                              <div>
-                                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">희망 클리어 횟수</label>
-                                <select
-                                  value={char.desired_clears}
-                                  onChange={e => updateCharacter(idx, 'desired_clears', parseInt(e.target.value))}
-                                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                                >
-                                  {Array.from({ length: 11 }, (_, i) => (
-                                    <option key={i} value={i}>{i}회</option>
-                                  ))}
-                                </select>
-                              </div>
-                            </>
-                          )}
+                          <div className="flex flex-col gap-2 justify-end">
+                            <label className={`flex items-center gap-2 ${char.is_blast_lancer ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={char.has_destruction_robe}
+                                onChange={e => updateCharacter(idx, 'has_destruction_robe', e.target.checked)}
+                                disabled={char.is_blast_lancer}
+                                className="w-4 h-4 text-purple-600"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">파멸의 로브 보유</span>
+                            </label>
+                            <label className={`flex items-center gap-2 ${char.has_destruction_robe || char.class_type !== '딜러' ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
+                              <input
+                                type="checkbox"
+                                checked={!!char.is_blast_lancer}
+                                onChange={e => updateCharacter(idx, 'is_blast_lancer', e.target.checked)}
+                                disabled={char.has_destruction_robe || char.class_type !== '딜러'}
+                                className="w-4 h-4 text-blue-600"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">블래스트 랜서</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={char.has_soul_weapon}
+                                onChange={e => updateCharacter(idx, 'has_soul_weapon', e.target.checked)}
+                                className="w-4 h-4 text-amber-600"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">소울 무기 보유</span>
+                            </label>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">희망 클리어 횟수</label>
+                            <select
+                              value={char.desired_clears}
+                              onChange={e => updateCharacter(idx, 'desired_clears', parseInt(e.target.value))}
+                              className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                            >
+                              {Array.from({ length: 11 }, (_, i) => (
+                                <option key={i} value={i}>{i}회</option>
+                              ))}
+                            </select>
+                          </div>
                         </div>
                       </div>
                     ))}

@@ -13,7 +13,7 @@ import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
 
 export default function Confirmed() {
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
-  const [selectedWeek, setSelectedWeek] = useState(() => formatDate(getWeekStartForRaid(new Date(), '루드라')));
+  const [selectedWeek, setSelectedWeek] = useState(() => formatDate(getWeekStartForRaid(new Date(), '브리레흐')));
   const [confirmed, setConfirmed] = useState<ConfirmedRaid | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -128,7 +128,7 @@ export default function Confirmed() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                   <span className="font-bold text-green-800 dark:text-green-300">
-                    {selectedRaid === '브리레흐' ? '파티 확정됨' : '공격대 확정됨'}
+                    파티 확정됨
                   </span>
                   <span className="text-sm text-green-600 dark:text-green-400">
                     ({new Date(confirmed.confirmed_at).toLocaleString('ko-KR')})
@@ -169,7 +169,6 @@ export default function Confirmed() {
                 selectedIndex={0}
                 onSelectIndex={() => {}}
                 onUpdate={handleUpdate}
-                raidType={selectedRaid}
                 weekStart={selectedWeek}
               />
             </div>

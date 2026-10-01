@@ -11,7 +11,7 @@ import {
   getAllConfirmedRaids,
   generateId,
 } from '../../lib/storage';
-import { solveRaidComposition, solveBriRaidComposition } from '../../lib/raidSolver';
+import { solveBriRaidComposition } from '../../lib/raidSolver';
 import type { BlockedOwnerSlots } from '../../lib/raidSolver';
 import RaidResult from '../RaidResult/RaidResult';
 import WeekPicker from '../WeekPicker/WeekPicker';
@@ -37,7 +37,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
   const [selectedWeek, setSelectedWeek] = useState(() => {
-    return formatDate(getWeekStartForRaid(new Date(), '루드라'));
+    return formatDate(getWeekStartForRaid(new Date(), '브리레흐'));
   });
   const [registrations, setRegistrations] = useState<DBRegistration[]>([]);
   const [compositions, setCompositions] = useState<RaidComposition[]>([]);
@@ -99,9 +99,7 @@ export default function Home() {
         }
       }
 
-      const results = selectedRaid === '브리레흐'
-        ? solveBriRaidComposition(registrations, blockedOwnerSlots)
-        : solveRaidComposition(registrations, selectedRaid, blockedOwnerSlots);
+      const results = solveBriRaidComposition(registrations, blockedOwnerSlots);
       setCompositions(results);
       saveComps(selectedRaid, selectedWeek, results);
       if (results.length === 0 && registrations.length > 0) {
@@ -281,16 +279,14 @@ export default function Home() {
                         캐릭터: {reg.characters.map((c, ci) => (
                           <span key={ci}>
                             {ci > 0 && ', '}
-                            {selectedRaid === '브리레흐'
-                              ? `${c.nickname}(${c.class_type})`
-                              : `${c.nickname}(${c.class_type}/${c.combat_power}K)`}
-                            {selectedRaid === '브리레흐' && c.has_destruction_robe && (
+                            {`${c.nickname}(${c.class_type})`}
+                            {c.has_destruction_robe && (
                               <span className="ml-1 px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700">파롭</span>
                             )}
-                            {selectedRaid === '브리레흐' && c.is_blast_lancer && (
+                            {c.is_blast_lancer && (
                               <span className="ml-1 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-[10px] rounded border border-blue-200 dark:border-blue-700">블랜</span>
                             )}
-                            {selectedRaid === '브리레흐' && c.has_soul_weapon && (
+                            {c.has_soul_weapon && (
                               <span className="ml-1 px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700">소울</span>
                             )}
                           </span>
@@ -339,7 +335,6 @@ export default function Home() {
               onSelectIndex={() => {}}
               onConfirm={handleConfirm}
               onUpdate={handleUpdateCompositions}
-              raidType={selectedRaid}
               weekStart={selectedWeek}
               registrations={registrations}
             />
