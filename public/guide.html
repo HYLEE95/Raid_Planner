@@ -381,7 +381,7 @@ body {
     <div class="step-num">2</div>
     <div class="step-content">
       <h4>공격대 배치 버튼 클릭 (브리레흐)</h4>
-      <p>프로그램이 수천 가지 조합을 계산하여 최적의 배치안을 제시합니다. 자동 조합은 브리레흐 전용입니다.</p>
+      <p>프로그램이 여러 조합을 계산해 점수가 좋은 순으로 최대 5개의 배치안을 제시합니다. 자동 조합은 브리레흐 전용입니다.</p>
     </div>
   </div>
   <div class="step">
@@ -434,7 +434,7 @@ body {
   <ul class="rule-list">
     <li><span class="bullet"></span> 확정된 공격대의 멤버를 변경/스왑 가능</li>
     <li><span class="bullet"></span> 변경 후 <b>"변경 저장"</b> 버튼으로 저장</li>
-    <li><span class="bullet"></span> 같은 레이드+주차에 재확정 시 기존 조합을 덮어씁니다</li>
+    <li><span class="bullet"></span> 같은 레이드+주차에 이미 확정된 공격대가 있으면 안내 후 확정되지 않습니다. 다시 확정하려면 홈에서 기존 공대를 먼저 삭제하세요</li>
     <li><span class="bullet"></span> 정규 사냥은 저장된 파티 배정을 <b>읽기 전용</b>으로 보여주며, <b>"삭제"</b>로 배정을 지울 수 있습니다</li>
   </ul>
 </div>
@@ -459,6 +459,8 @@ body {
     <li><span class="bullet"></span> 한 파티 <b>4~8명</b>, <b>세가 1명</b> 필수</li>
     <li><span class="bullet"></span> 세바는 6인 이하 <b>1명</b>, 7~8인 <b>1~2명</b></li>
     <li><span class="bullet"></span> 같은 공격대에 <b>동일 소유주 캐릭터 중복 불가</b></li>
+    <li><span class="bullet"></span> <b>5인 이하</b> 파티의 딜러는 <b>파멸의 로브</b> 또는 <b>블래스트 랜서</b>여야 합니다</li>
+    <li><span class="bullet"></span> <b>4인</b> 파티의 딜러는 추가로 <b>소울 무기</b>가 필요합니다 (봇은 예외)</li>
   </ul>
 
   <hr class="divider">
@@ -466,7 +468,8 @@ body {
   <div class="sub-title">봇(공방인원) 규칙 (브리레흐)</div>
   <ul class="rule-list">
     <li><span class="bullet"></span> 먼저 <b>봇 없이</b> 파티를 편성합니다</li>
-    <li><span class="bullet"></span> 남은 인원으로 4인 파티를 만들 때만 봇을 <b>최대 2명</b>까지 채웁니다</li>
+    <li><span class="bullet"></span> 시간대에 배치 가능한 인원이 <b>4명 이상</b>인데 세가·세바 정원, 소유주 중복, 딜러의 로브·소울 조건 때문에 4인을 채우지 못할 때만 봇을 <b>최대 2명</b>까지 채웁니다</li>
+    <li><span class="bullet"></span> 배치 가능한 인원이 <b>3명 이하</b>인 시간대는 파티를 만들지 않습니다</li>
   </ul>
 </div>
 

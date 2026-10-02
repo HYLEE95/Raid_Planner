@@ -81,7 +81,7 @@ export default function Manual() {
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">레이드에 참여 가능한 날짜를 선택하고, 각 날짜별 가능한 시간대를 설정합니다.</p>
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 space-y-1">
                 <p>"시간 무관" 체크 시 해당 날짜의 모든 시간대에 참여 가능</p>
-                <p>2개 이상 날짜 선택 시 "시간 일괄 설정" 옵션 사용 가능</p>
+                <p>(브리레흐) 2개 이상 날짜 선택 시 "시간 일괄 설정" 옵션 사용 가능</p>
               </div>
             </div>
           </div>
@@ -89,7 +89,7 @@ export default function Manual() {
             <span className="w-6 h-6 rounded bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">d</span>
             <div>
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">신청하기</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">"신청하기" 버튼을 눌러 참여를 신청합니다. 신청 후에도 수정/삭제가 가능합니다.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">"신청하기" 버튼을 눌러 참여를 신청합니다. 신청 후에도 "공격대 배치" 화면의 신청자 목록에서 수정/삭제가 가능합니다.</p>
             </div>
           </div>
         </div>
@@ -113,7 +113,7 @@ export default function Manual() {
             <span className="w-6 h-6 rounded bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">b</span>
             <div>
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">"공격대 배치" 버튼 클릭 (브리레흐)</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">알고리즘이 최적의 공격대 조합을 자동으로 생성합니다. 최대 4개의 조합이 표시됩니다. 자동 조합은 브리레흐 전용이며, 정규 사냥은 투표 결과를 보고 직접 배정합니다.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">알고리즘이 최적의 공격대 조합을 자동으로 생성합니다. 최대 5개의 조합이 표시됩니다. 자동 조합은 브리레흐 전용이며, 정규 사냥은 투표 결과를 보고 직접 배정합니다.</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -123,9 +123,10 @@ export default function Manual() {
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">각 조합을 펼쳐서 공격대 구성을 확인하고, 원하는 조합의 "공대 확정" 버튼을 눌러 확정합니다.</p>
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 space-y-1">
                 <p>브리레흐: 한 파티 4~8명으로 구성</p>
+                <p>브리레흐 딜러: 5인 이하 파티는 파멸의 로브 또는 블래스트 랜서 필요, 4인 파티는 소울 무기도 필요 (봇 예외)</p>
                 <p>정규 사냥: 자동 편성 없이 투표 결과를 보고 사람이 직접 배분</p>
                 <p>정규 사냥 파티는 3인 또는 4인, 외부 용병 추가 가능</p>
-                <p>공방인원: 인원 부족 시 자동으로 채워지는 빈 슬롯</p>
+                <p>공방인원(봇, 브리레흐): 시간대 가능 인원이 4명 이상인데 세가·세바 정원, 소유주 중복, 딜러 로브·소울 조건 때문에 4인이 안 될 때만 최대 2명까지 채워지는 빈 슬롯. 3명 이하인 시간대는 파티를 만들지 않음</p>
               </div>
             </div>
           </div>
