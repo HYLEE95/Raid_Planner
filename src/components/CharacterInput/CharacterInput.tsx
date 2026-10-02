@@ -8,9 +8,7 @@ import {
   saveRegistration,
 } from '../../lib/storage';
 import type { ClassType, DBCharacterProfile, RaidType } from '../../lib/types';
-import { RAID_TYPES, RAID_CONFIGS } from '../../lib/types';
-
-const BRI_CLASS_TYPES: ClassType[] = ['세가', '세바', '딜러'];
+import { RAID_TYPES, RAID_CONFIGS, CLASS_TYPES_BY_RAID, HIGHLIGHT_CLASSES } from '../../lib/types';
 
 const CLASS_COLORS: Record<string, string> = {
   '세가': 'bg-purple-100 text-purple-800 border-purple-300',
@@ -31,9 +29,9 @@ interface CharacterForm {
   desired_clears: number;
 }
 
-const defaultChar = (): CharacterForm => ({
+const defaultChar = (raidType?: RaidType | null): CharacterForm => ({
   nickname: '',
-  class_type: '딜러',
+  class_type: raidType === '정규사냥' ? '세바' : '딜러',
   combat_power: 0,
   can_clear_raid: false,
   is_underpowered: false,
@@ -49,13 +47,14 @@ export default function CharacterInput() {
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
   const [mode, setMode] = useState<Mode>(null);
   const [ownerName, setOwnerName] = useState('');
-  const [characters, setCharacters] = useState<CharacterForm[]>([defaultChar()]);
+  const [characters, setCharacters] = useState<CharacterForm[]>([defaultChar(selectedRaid)]);
   const [profiles, setProfiles] = useState<DBCharacterProfile[]>([]);
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const classTypes = BRI_CLASS_TYPES;
+  const isHunt = selectedRaid === '정규사냥';
+  const classTypes = selectedRaid ? CLASS_TYPES_BY_RAID[selectedRaid] : CLASS_TYPES_BY_RAID['브리레흐'];
 
   useEffect(() => {
     if (!selectedRaid) { setProfiles([]); return; }
@@ -71,7 +70,7 @@ export default function CharacterInput() {
   };
 
   const addCharacter = () => {
-    setCharacters([...characters, defaultChar()]);
+    setCharacters([...characters, defaultChar(selectedRaid)]);
   };
 
   const removeCharacter = (idx: number) => {
@@ -153,7 +152,7 @@ export default function CharacterInput() {
   const resetForm = () => {
     setEditId(null);
     setOwnerName('');
-    setCharacters([defaultChar()]);
+    setCharacters([defaultChar(selectedRaid)]);
   };
 
   const handleEdit = (profile: DBCharacterProfile) => {
@@ -369,9 +368,9 @@ export default function CharacterInput() {
                                   onClick={() => updateCharacter(idx, 'class_type', ct)}
                                   className={`px-2 py-1 text-xs rounded border transition-colors ${
                                     char.class_type === ct
-                                      ? (CLASS_COLORS[ct] || '') + ' font-bold'
+                                      ? (CLASS_COLORS[ct] || 'bg-indigo-100 text-indigo-800 border-indigo-300') + ' font-bold'
                                       : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600'
-                                  }`}
+                                  } ${isHunt && HIGHLIGHT_CLASSES.includes(ct) ? 'ring-2 ring-amber-400' : ''}`}
                                 >
                                   {ct}
                                 </button>
@@ -380,6 +379,7 @@ export default function CharacterInput() {
                           </div>
 
                           {/* 브리레흐 전용 */}
+                          {!isHunt && (<>
                           <div className="flex flex-col gap-2 justify-end">
                             <label className={`flex items-center gap-2 ${char.is_blast_lancer ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}>
                               <input
@@ -423,6 +423,7 @@ export default function CharacterInput() {
                               ))}
                             </select>
                           </div>
+                          </>)}
                         </div>
                       </div>
                     ))}

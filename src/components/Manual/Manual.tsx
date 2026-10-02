@@ -29,13 +29,12 @@ export default function Manual() {
             <span className="w-6 h-6 rounded bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">c</span>
             <div>
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">캐릭터 정보 등록</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">각 캐릭터의 닉네임, 직업군(근딜/원딜/호법/치유), 전투력(K)을 입력합니다.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">각 캐릭터의 닉네임과 직업군을 입력합니다. 레이드에 따라 선택지가 다릅니다.</p>
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 space-y-1">
-                <p><span className="font-semibold text-red-500">근딜</span> / <span className="font-semibold text-blue-500">원딜</span> : 딜러 직군</p>
-                <p><span className="font-semibold text-yellow-600">호법</span> : 탱커 (서포트 직군, 2팀에 배치 불가)</p>
-                <p><span className="font-semibold text-green-600">치유</span> : 힐러 (서포트 직군)</p>
-                <p className="mt-1">공팟 가도 상관 없음 : 공방 인원과 함께 배치 가능</p>
-                <p>공팟 스펙 미달(저스펙) : 공방 인원과 같은 공격대에 배치되지 않음</p>
+                <p><span className="font-semibold text-purple-500">브리레흐</span> : 세가 / 세바 / 딜러</p>
+                <p><span className="font-semibold text-indigo-500">정규 사냥</span> : 세바 / 엘나 / 닼메 / 알스 / 세가 / 블랜 / 거너 / 포알 / 멜퍼 / 퓨파</p>
+                <p className="mt-1">브리레흐는 파멸의 로브, 블래스트 랜서, 소울 무기, 희망 클리어 횟수를 추가로 입력합니다.</p>
+                <p>정규 사냥은 닉네임과 직업군만 입력합니다.</p>
               </div>
             </div>
           </div>
@@ -123,9 +122,9 @@ export default function Manual() {
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">조합 확인 및 확정</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">각 조합을 펼쳐서 공격대 구성을 확인하고, 원하는 조합의 "공대 확정" 버튼을 눌러 확정합니다.</p>
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg text-xs text-gray-600 dark:text-gray-300 space-y-1">
-                <p>각 공격대는 1팀(4명) + 2팀(4명)으로 구성</p>
-                <p>1팀: 서포트(호법/치유) 최소 1명 필수</p>
-                <p>2팀: 치유 최소 1명 필수, 호법 배치 불가</p>
+                <p>브리레흐: 한 파티 4~8명으로 구성</p>
+                <p>정규 사냥: 자동 편성 없이 투표 결과를 보고 사람이 직접 배분</p>
+                <p>정규 사냥 파티는 3인 또는 4인, 외부 용병 추가 가능</p>
                 <p>공방인원: 인원 부족 시 자동으로 채워지는 빈 슬롯</p>
               </div>
             </div>
@@ -151,7 +150,7 @@ export default function Manual() {
             <span className="w-6 h-6 rounded bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">b</span>
             <div>
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">공격대 정보 확인</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">날짜/시간별 공격대, 각 팀의 멤버 구성과 전투력 평균을 확인합니다.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">날짜/시간별 공격대와 파티 멤버 구성을 확인합니다. 정규 사냥은 저장된 파티 배정을 읽기 전용으로 보여줍니다.</p>
             </div>
           </div>
           <div className="flex items-start gap-3">

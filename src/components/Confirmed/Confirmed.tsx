@@ -8,6 +8,7 @@ import {
 } from '../../lib/storage';
 import WeekPicker from '../WeekPicker/WeekPicker';
 import RaidResult from '../RaidResult/RaidResult';
+import HuntAssignmentView from '../HuntVote/HuntAssignmentView';
 import type { ConfirmedRaid, RaidType, RaidComposition } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS, isRaidComposition } from '../../lib/types';
 
@@ -121,6 +122,25 @@ export default function Confirmed() {
           {loading ? (
             <div className="text-center py-12 text-gray-500">로딩 중...</div>
           ) : confirmed ? (
+            !isRaidComposition(confirmed.composition) ? (
+              <div>
+                <div className="flex items-center justify-between mb-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-lg flex-wrap gap-2">
+                  <span className="font-bold text-green-800 dark:text-green-300">정규 사냥 배정</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-green-600 dark:text-green-400">
+                      ({new Date(confirmed.confirmed_at).toLocaleString('ko-KR')})
+                    </span>
+                    <button
+                      onClick={handleDelete}
+                      className="px-3 py-1.5 rounded-lg text-sm font-semibold text-red-600 bg-white dark:bg-gray-800 border border-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </div>
+                <HuntAssignmentView assignment={confirmed.composition} />
+              </div>
+            ) : (
             <div>
               {/* 확정 헤더 */}
               <div className="flex items-center justify-between mb-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-lg">
@@ -173,10 +193,17 @@ export default function Confirmed() {
                 weekStart={selectedWeek}
               />
             </div>
+            )
           ) : (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-              <p className="text-lg">확정된 공격대가 없습니다.</p>
-              <p className="text-sm mt-2">공격대 배치 화면에서 조합을 선택하여 공대를 확정해주세요.</p>
+              <p className="text-lg">
+                {RAID_CONFIGS[selectedRaid].isVoteOnly ? '저장된 배정이 없습니다.' : '확정된 공격대가 없습니다.'}
+              </p>
+              <p className="text-sm mt-2">
+                {RAID_CONFIGS[selectedRaid].isVoteOnly
+                  ? '투표 결과 화면에서 파티를 배정하고 저장해주세요.'
+                  : '공격대 배치 화면에서 조합을 선택하여 공대를 확정해주세요.'}
+              </p>
             </div>
           )}
         </>
