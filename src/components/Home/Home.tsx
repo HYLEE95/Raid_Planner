@@ -16,6 +16,7 @@ import type { BlockedOwnerSlots } from '../../lib/raidSolver';
 import RaidResult from '../RaidResult/RaidResult';
 import WeekPicker from '../WeekPicker/WeekPicker';
 import HuntVoteBoard from '../HuntVote/HuntVoteBoard';
+import RegistrationList from './RegistrationList';
 import type { DBRegistration, RaidComposition, RaidType } from '../../lib/types';
 import { RAID_TYPES, RAID_CONFIGS, isRaidComposition } from '../../lib/types';
 
@@ -200,6 +201,16 @@ export default function Home() {
               {registrations.reduce((s, r) => s + r.characters.length, 0)}개
             </div>
             <HuntVoteBoard key={selectedWeek} registrations={registrations} weekStart={selectedWeek} />
+            <div className="mt-4">
+              <RegistrationList
+                registrations={registrations}
+                show={showRegistrations}
+                onToggle={() => setShowRegistrations(!showRegistrations)}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                showBriBadges={false}
+              />
+            </div>
           </>
         ) : (
         <>
@@ -281,64 +292,14 @@ export default function Home() {
           </div>
 
           {/* 신청자 목록 */}
-          <div className="mb-6">
-            <button
-              onClick={() => setShowRegistrations(!showRegistrations)}
-              className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-            >
-              {showRegistrations ? '신청자 목록 숨기기' : '신청자 목록 보기'} ({registrations.length}명|{registrations.reduce((s, r) => s + r.characters.length, 0)}캐릭)
-            </button>
-
-            {showRegistrations && (
-              <div className="mt-3 space-y-2">
-                {registrations.map(reg => (
-                  <div
-                    key={reg.id}
-                    className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg"
-                  >
-                    <div>
-                      <span className="font-medium text-gray-800 dark:text-gray-200">{reg.owner_name}</span>
-                      <span className="text-sm text-gray-600 dark:text-gray-400 ml-2">
-                        캐릭터: {reg.characters.map((c, ci) => (
-                          <span key={ci}>
-                            {ci > 0 && ', '}
-                            {`${c.nickname}(${c.class_type})`}
-                            {c.has_destruction_robe && (
-                              <span className="ml-1 px-1 py-0.5 bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300 text-[10px] rounded border border-purple-200 dark:border-purple-700">파롭</span>
-                            )}
-                            {c.is_blast_lancer && (
-                              <span className="ml-1 px-1 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 text-[10px] rounded border border-blue-200 dark:border-blue-700">블랜</span>
-                            )}
-                            {c.has_soul_weapon && (
-                              <span className="ml-1 px-1 py-0.5 bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300 text-[10px] rounded border border-amber-200 dark:border-amber-700">소울</span>
-                            )}
-                          </span>
-                        ))}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => handleEdit(reg)}
-                        className="text-indigo-500 text-sm hover:text-indigo-700"
-                      >
-                        수정
-                      </button>
-                      <span className="text-gray-300">|</span>
-                      <button
-                        onClick={() => handleDelete(reg.id)}
-                        className="text-red-500 text-sm hover:text-red-700"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {registrations.length === 0 && (
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">아직 신청자가 없습니다.</p>
-                )}
-              </div>
-            )}
-          </div>
+          <RegistrationList
+            registrations={registrations}
+            show={showRegistrations}
+            onToggle={() => setShowRegistrations(!showRegistrations)}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+            showBriBadges
+          />
 
           {/* 인원 부족 메시지 */}
           {insufficientMsg && (

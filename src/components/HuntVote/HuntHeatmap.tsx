@@ -14,9 +14,11 @@ interface Props {
   weekDates: Date[];
   selected: SelectedCell | null;
   onSelect: (cell: SelectedCell) => void;
+  /** 배정(파티)이 존재하는 슬롯의 heatmapKey 집합. 인원 0이어도 숨기지 않는다. */
+  assignedKeys: Set<string>;
 }
 
-export default function HuntHeatmap({ heatmap, weekDates, selected, onSelect }: Props) {
+export default function HuntHeatmap({ heatmap, weekDates, selected, onSelect, assignedKeys }: Props) {
   const [hideEmpty, setHideEmpty] = useState(true);
   const dateStrs = useMemo(() => weekDates.map(formatDate), [weekDates]);
 
@@ -29,9 +31,12 @@ export default function HuntHeatmap({ heatmap, weekDates, selected, onSelect }: 
   const rows = useMemo(() => {
     if (!hideEmpty) return HUNT_SLOT_STARTS;
     return HUNT_SLOT_STARTS.filter(s =>
-      dateStrs.some(d => (heatmap.get(heatmapKey(d, s))?.length ?? 0) > 0)
+      dateStrs.some(d => {
+        const key = heatmapKey(d, s);
+        return (heatmap.get(key)?.length ?? 0) > 0 || assignedKeys.has(key);
+      })
     );
-  }, [hideEmpty, heatmap, dateStrs]);
+  }, [hideEmpty, heatmap, dateStrs, assignedKeys]);
 
   return (
     <section className="mb-6">

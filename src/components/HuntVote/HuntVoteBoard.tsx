@@ -63,6 +63,12 @@ export default function HuntVoteBoard({ registrations, weekStart }: Props) {
 
   const assignedCounts = useMemo(() => countAssignments(assignment), [assignment]);
 
+  /** 배정이 있는 슬롯 키. 투표 인원이 0이 되어도(신청 삭제 등) 히트맵에서 숨기지 않기 위함. */
+  const assignedKeys = useMemo(
+    () => new Set(assignment.slots.filter(s => s.parties.length > 0).map(s => heatmapKey(s.date, s.start_time))),
+    [assignment]
+  );
+
   const slotParties: HuntParty[] = useMemo(() => {
     if (!selected) return [];
     return assignment.slots.find(s => s.date === selected.date && s.start_time === selected.start)?.parties ?? [];
@@ -159,6 +165,7 @@ export default function HuntVoteBoard({ registrations, weekStart }: Props) {
         weekDates={weekDates}
         selected={selected}
         onSelect={setSelected}
+        assignedKeys={assignedKeys}
       />
 
       {selected && (
