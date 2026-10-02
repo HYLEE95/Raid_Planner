@@ -40,12 +40,13 @@ export default function Confirmed() {
 
   const handleDelete = async () => {
     if (!confirmed) return;
-    if (!window.confirm('확정된 공격대를 삭제하시겠습니까?')) return;
+    const isHuntAssignment = !isRaidComposition(confirmed.composition);
+    if (!window.confirm(isHuntAssignment ? '저장된 배정을 삭제하시겠습니까?' : '확정된 공격대를 삭제하시겠습니까?')) return;
     try {
       await deleteConfirmedRaid(confirmed.id);
       setConfirmed(null);
       setHasChanges(false);
-      alert('공격대가 삭제되었습니다.');
+      alert(isHuntAssignment ? '배정이 삭제되었습니다.' : '공격대가 삭제되었습니다.');
     } catch (err) {
       alert('삭제 실패: ' + (err as Error).message);
     }

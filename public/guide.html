@@ -155,10 +155,10 @@ body {
   font-weight: 600;
   color: #fff;
 }
-.class-badge.melee { background: #ef4444; }
-.class-badge.ranged { background: #3b82f6; }
-.class-badge.tank { background: #eab308; color: #422006; }
-.class-badge.healer { background: #22c55e; }
+.class-badge.saga { background: #a855f7; }
+.class-badge.seba { background: #fbbf24; color: #451a03; }
+.class-badge.dealer { background: #f43f5e; }
+.class-badge.hunt { background: #6366f1; }
 
 .link-box {
   background: #f8fafc;
@@ -289,26 +289,39 @@ body {
     <div class="step-num">2</div>
     <div class="step-content">
       <h4>캐릭터 추가</h4>
-      <p>레이드에 참여할 캐릭터의 닉네임, 직군, 전투력을 입력합니다.</p>
+      <p>레이드에 참여할 캐릭터의 닉네임과 직군을 입력합니다.</p>
     </div>
   </div>
   <div class="step">
     <div class="step-num">3</div>
     <div class="step-content">
       <h4>직군 선택</h4>
-      <p>캐릭터의 역할을 선택합니다.</p>
+      <p>레이드에 따라 선택지가 다릅니다.</p>
+      <p style="margin-top:6px;"><b>브리레흐</b></p>
       <div class="class-badges">
-        <span class="class-badge melee">근딜</span>
-        <span class="class-badge ranged">원딜</span>
-        <span class="class-badge tank">호법성</span>
-        <span class="class-badge healer">치유성</span>
+        <span class="class-badge saga">세가</span>
+        <span class="class-badge seba">세바</span>
+        <span class="class-badge dealer">딜러</span>
+      </div>
+      <p><b>정규 사냥</b></p>
+      <div class="class-badges">
+        <span class="class-badge seba">세바</span>
+        <span class="class-badge hunt">엘나</span>
+        <span class="class-badge hunt">닼메</span>
+        <span class="class-badge hunt">알스</span>
+        <span class="class-badge hunt">세가</span>
+        <span class="class-badge hunt">블랜</span>
+        <span class="class-badge hunt">거너</span>
+        <span class="class-badge hunt">포알</span>
+        <span class="class-badge hunt">멜퍼</span>
+        <span class="class-badge hunt">퓨파</span>
       </div>
     </div>
   </div>
 
   <div class="highlight">
-    ⚠️ <b>전투력</b>은 K 단위로 입력합니다. (예: 365K → 365)<br>
-    ⚠️ <b>저스펙 체크</b>: 기준 전투력(160K) 미달 시 체크하면 봇과 같은 공격대에 배치되지 않습니다.
+    ⚠️ <b>브리레흐</b>는 파멸의 로브, 블래스트 랜서, 소울 무기, 희망 클리어 횟수를 추가로 입력합니다.<br>
+    ⚠️ <b>정규 사냥</b>은 닉네임과 직군만 입력합니다.
   </div>
 </div>
 
@@ -328,7 +341,7 @@ body {
     <div class="step-num">2</div>
     <div class="step-content">
       <h4>주차 선택</h4>
-      <p>참여할 리셋 주차를 선택합니다. (매주 수요일 기준)</p>
+      <p>참여할 리셋 주차를 선택합니다. (매주 목요일 기준)</p>
     </div>
   </div>
   <div class="step">
@@ -343,6 +356,7 @@ body {
     <div class="step-content">
       <h4>가용 시간대 선택</h4>
       <p>시간표에서 참여 가능한 날짜와 시간을 터치/클릭하여 선택합니다.</p>
+      <p>정규 사냥은 요일별로 <b>오전 9시 ~ 익일 새벽 1시</b> 사이 시간대를 30분 단위로 여러 개 투표할 수 있습니다.</p>
     </div>
   </div>
 
@@ -354,7 +368,7 @@ body {
 <!-- 3단계: 공격대 배치 -->
 <div class="section">
   <div class="section-title"><span class="icon">⚔️</span> 3단계: 공격대 배치</div>
-  <p style="font-size:13px; margin-bottom:12px;"><span class="tag">공격대 배치</span> 메뉴에서 자동 조합을 생성합니다.</p>
+  <p style="font-size:13px; margin-bottom:12px;"><span class="tag">공격대 배치</span> 메뉴에서 파티를 구성합니다. 아래 1~5는 <b>브리레흐</b> 자동 조합 흐름입니다.</p>
 
   <div class="step">
     <div class="step-num">1</div>
@@ -366,14 +380,14 @@ body {
   <div class="step">
     <div class="step-num">2</div>
     <div class="step-content">
-      <h4>공격대 배치 버튼 클릭</h4>
-      <p>프로그램이 수천 가지 조합을 계산하여 최적의 배치안을 제시합니다.</p>
+      <h4>공격대 배치 버튼 클릭 (브리레흐)</h4>
+      <p>프로그램이 수천 가지 조합을 계산하여 최적의 배치안을 제시합니다. 자동 조합은 브리레흐 전용입니다.</p>
     </div>
   </div>
   <div class="step">
     <div class="step-num">3</div>
     <div class="step-content">
-      <h4>조합 확인 및 선택</h4>
+      <h4>조합 확인 및 선택 (브리레흐)</h4>
       <p>여러 조합 중 원하는 것을 선택하고 <b>"더보기"</b>를 눌러 상세 내용을 확인합니다.</p>
     </div>
   </div>
@@ -394,10 +408,19 @@ body {
 
   <hr class="divider">
 
+  <div class="sub-title">정규 사냥 배정 흐름</div>
+  <ul class="rule-list">
+    <li><span class="bullet"></span> <b>신청</b>: 파티 참여 신청에서 가능한 시간대를 30분 단위로 투표합니다</li>
+    <li><span class="bullet"></span> <b>히트맵</b>: 공격대 배치에서 정규 사냥을 고르면 요일 × 30분 시간대별 인원수가 표시되고, 칸을 누르면 명단이 보입니다</li>
+    <li><span class="bullet"></span> <b>수동 배정·저장</b>: 시간대마다 3인/4인 파티를 만들어 캐릭터나 외부 용병을 넣고 저장합니다</li>
+    <li><span class="bullet"></span> <b>홈 조회</b>: 저장된 배정은 홈에서 읽기 전용으로 확인합니다</li>
+  </ul>
+
+  <hr class="divider">
+
   <div class="sub-title">조합 정보 읽기</div>
   <ul class="rule-list">
     <li><span class="bullet"></span> <b>공격대 수</b>: 편성된 총 공격대 개수</li>
-    <li><span class="bullet"></span> <b>평균(딜러)</b>: 봇 제외 전체 팀 딜러 평균 전투력</li>
     <li><span class="bullet"></span> <b>공방인원</b>: 봇(자동 채워진 빈자리) 수</li>
     <li><span class="bullet"></span> <b>제외</b>: 이번 조합에서 배치되지 못한 인원 수</li>
   </ul>
@@ -412,6 +435,7 @@ body {
     <li><span class="bullet"></span> 확정된 공격대의 멤버를 변경/스왑 가능</li>
     <li><span class="bullet"></span> 변경 후 <b>"변경 저장"</b> 버튼으로 저장</li>
     <li><span class="bullet"></span> 같은 레이드+주차에 재확정 시 기존 조합을 덮어씁니다</li>
+    <li><span class="bullet"></span> 정규 사냥은 저장된 파티 배정을 <b>읽기 전용</b>으로 보여주며, <b>"삭제"</b>로 배정을 지울 수 있습니다</li>
   </ul>
 </div>
 
@@ -430,29 +454,19 @@ body {
 
   <hr class="divider">
 
-  <div class="sub-title">봇(공방인원) 규칙</div>
+  <div class="sub-title">브리레흐 기본 규칙</div>
   <ul class="rule-list">
-    <li><span class="bullet"></span> 봇은 <b>마지막 공격대에만</b> 배치 가능</li>
-    <li><span class="bullet"></span> 봇 공격대에 <b>저스펙 인원 배치 불가</b></li>
-    <li><span class="bullet"></span> 봇 공격대 팀 평균 전투력 <b>160K 이상</b> 필수</li>
+    <li><span class="bullet"></span> 한 파티 <b>4~8명</b>, <b>세가 1명</b> 필수</li>
+    <li><span class="bullet"></span> 세바는 6인 이하 <b>1명</b>, 7~8인 <b>1~2명</b></li>
+    <li><span class="bullet"></span> 같은 공격대에 <b>동일 소유주 캐릭터 중복 불가</b></li>
   </ul>
 
   <hr class="divider">
 
-  <div class="sub-title">서포터 전투력 계산</div>
+  <div class="sub-title">봇(공방인원) 규칙 (브리레흐)</div>
   <ul class="rule-list">
-    <li><span class="bullet"></span> 서포터 1명: 평균 계산에서 <b>제외</b> (딜러만 계산)</li>
-    <li><span class="bullet"></span> 서포터 2명+: 전투력 <b>가장 낮은 서포터 1명만 제외</b>, 나머지는 딜러로 간주</li>
-    <li><span class="bullet"></span> 강한 서포터는 DPS 슬롯에도 배치되어 평균 전투력 상승에 기여</li>
-  </ul>
-
-  <hr class="divider">
-
-  <div class="sub-title">전투력 균등화</div>
-  <ul class="rule-list">
-    <li><span class="bullet"></span> 강한 캐릭터가 포함된 시간대를 <b>우선 처리</b>하여 봇 없는 공격대에 배치</li>
-    <li><span class="bullet"></span> Hill Climbing 알고리즘으로 팀 간 <b>전투력 분산 최소화</b></li>
-    <li><span class="bullet"></span> 시간대가 다른 공격대 간 스왑 시 <b>시간대 참여 가능 여부 검증</b></li>
+    <li><span class="bullet"></span> 먼저 <b>봇 없이</b> 파티를 편성합니다</li>
+    <li><span class="bullet"></span> 남은 인원으로 4인 파티를 만들 때만 봇을 <b>최대 2명</b>까지 채웁니다</li>
   </ul>
 </div>
 
@@ -464,6 +478,7 @@ body {
     <li><span class="bullet"></span> 교체 대상이 해당 공격대 <b>시간대에 참여 불가능</b>하면 선택지에 나타나지 않습니다</li>
     <li><span class="bullet"></span> 같은 공격대 내 <b>소유주 중복</b>이 발생하는 교체는 불가합니다</li>
     <li><span class="bullet"></span> 같은 파티 소속 인원은 교체 선택지에서 <b>자동 제외</b>됩니다</li>
+    <li><span class="bullet"></span> 시간대가 다른 공격대 간 스왑 시 <b>시간대 참여 가능 여부를 검증</b>합니다</li>
     <li><span class="bullet"></span> <b>"공방인원(봇)"</b>으로 교체하면 해당 멤버는 빠지는 인원으로 이동합니다</li>
   </ul>
 
@@ -476,23 +491,16 @@ body {
 <div class="section">
   <div class="section-title"><span class="icon">❓</span> 자주 묻는 질문</div>
 
-  <div class="sub-title">Q. 강한 캐릭이 봇 공격대에 배치돼요</div>
-  <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
-    해당 캐릭터가 가용한 시간대에 비봇 공격대를 구성할 만큼 충분한 인원이 없기 때문입니다. 가용 시간대를 넓히면 개선됩니다.
-  </p>
-
-  <hr class="divider">
-
   <div class="sub-title">Q. 제외 인원이 많아요</div>
   <p style="font-size:13px; color:#64748b; margin-bottom:14px;">
-    시간대가 겹치는 인원이 적거나 서포터 부족 등으로 파티 구성이 어려운 경우 발생합니다. 더 많은 시간대에 참여 가능하도록 등록하면 개선됩니다.
+    시간대가 겹치는 인원이 적거나 세가·세바 부족 등으로 파티 구성이 어려운 경우 발생합니다. 더 많은 시간대에 참여 가능하도록 등록하면 개선됩니다.
   </p>
 
   <hr class="divider">
 
   <div class="sub-title">Q. 브리레흐는 어떻게 달라요?</div>
   <p style="font-size:13px; color:#64748b;">
-    브리레흐는 1팀(최대 8명) 구성이며, 직군 제한 없이 자유롭게 배치됩니다. 전투력 대신 참여 인원 최대화에 초점을 맞춥니다.
+    브리레흐는 한 파티 4~8명 구성이며, 세가 1명과 세바 1~2명이 필요합니다. 최대한 많은 인원이 참여하도록 자동으로 편성합니다.
   </p>
 
   <hr class="divider">

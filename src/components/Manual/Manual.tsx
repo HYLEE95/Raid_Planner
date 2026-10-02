@@ -106,14 +106,14 @@ export default function Manual() {
             <span className="w-6 h-6 rounded bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">a</span>
             <div>
               <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">하단 메뉴 &gt; "공격대 배치" 선택</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">레이드와 주차를 선택하면 신청자 현황이 표시됩니다.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">레이드와 주차를 선택하면 신청자 현황이 표시됩니다. 정규 사냥은 요일 × 30분 시간대 투표 히트맵과 파티 배정 화면이 표시됩니다.</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
             <span className="w-6 h-6 rounded bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">b</span>
             <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">"공격대 배치" 버튼 클릭</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">알고리즘이 최적의 공격대 조합을 자동으로 생성합니다. 최대 4개의 조합이 표시됩니다.</p>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">"공격대 배치" 버튼 클릭 (브리레흐)</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">알고리즘이 최적의 공격대 조합을 자동으로 생성합니다. 최대 4개의 조합이 표시됩니다. 자동 조합은 브리레흐 전용이며, 정규 사냥은 투표 결과를 보고 직접 배정합니다.</p>
             </div>
           </div>
           <div className="flex items-start gap-3">
@@ -156,8 +156,8 @@ export default function Manual() {
           <div className="flex items-start gap-3">
             <span className="w-6 h-6 rounded bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">c</span>
             <div>
-              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">공대 삭제</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">필요 시 "공대 삭제" 버튼으로 확정을 취소하고 다시 배치할 수 있습니다.</p>
+              <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">삭제</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">필요 시 "삭제" 버튼으로 확정(정규 사냥은 배정)을 취소하고 다시 배치할 수 있습니다.</p>
             </div>
           </div>
         </div>
