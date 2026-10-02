@@ -199,7 +199,7 @@ export default function Home() {
               투표 인원 {registrations.length}명 · 캐릭터{' '}
               {registrations.reduce((s, r) => s + r.characters.length, 0)}개
             </div>
-            <HuntVoteBoard registrations={registrations} weekStart={selectedWeek} />
+            <HuntVoteBoard key={selectedWeek} registrations={registrations} weekStart={selectedWeek} />
           </>
         ) : (
         <>

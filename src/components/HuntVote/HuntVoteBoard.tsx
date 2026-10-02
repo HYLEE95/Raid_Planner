@@ -24,22 +24,21 @@ export default function HuntVoteBoard({ registrations, weekStart }: Props) {
   const [saving, setSaving] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
 
+  // 주차별 상태 초기화는 Home에서 key={weekStart}로 리마운트해 보장한다. 이전 주차의
+  // 배정·선택·확정 id가 새 주차로 넘어가거나, 진행 중이던 저장의 완료 콜백이 새 주차
+  // 상태를 오염시키는 것을 막는다. 미저장 변경은 경고 없이 버린다 (Confirmed.tsx와 같은 방식).
   useEffect(() => {
     let cancelled = false;
     getConfirmedRaid(weekStart, '정규사냥')
       .then(row => {
         if (cancelled) return;
-        if (row && !isRaidComposition(row.composition)) {
+        // composition이 비어 있는 손상된 행이 있어도 TypeError로 떨어지지 않게 한다.
+        if (row && row.composition && !isRaidComposition(row.composition)) {
           setConfirmedId(row.id);
           setAssignment(row.composition);
           setSavedAt(row.confirmed_at);
-        } else {
-          setConfirmedId(null);
-          setAssignment({ slots: [] });
-          setSavedAt(null);
+          setDirty(false);
         }
-        setDirty(false);
-        setActivePartyId(null);
       })
       .catch(err => console.error('정규 사냥 배정 로드 실패:', err));
     return () => { cancelled = true; };
