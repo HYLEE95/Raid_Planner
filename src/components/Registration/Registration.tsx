@@ -84,12 +84,10 @@ export default function Registration() {
   const [selectedRaid, setSelectedRaid] = useState<RaidType | null>(null);
   const [ownerName, setOwnerName] = useState('');
   const [characters, setCharacters] = useState<CharacterForm[]>([defaultChar(selectedRaid)]);
-  const [selectedWeek, setSelectedWeek] = useState(() => {
-    const currentWeek = getWeekStartForRaid(new Date(), '브리레흐');
-    const nextWeek = new Date(currentWeek);
-    nextWeek.setDate(nextWeek.getDate() + 7);
-    return formatDate(nextWeek);
-  });
+  // 기본 주차는 이번 주. 홈·배치 화면과 같은 주차를 보도록 맞춘다.
+  const [selectedWeek, setSelectedWeek] = useState(() =>
+    formatDate(getWeekStartForRaid(new Date(), '브리레흐'))
+  );
   const [dateSelections, setDateSelections] = useState<DateTimeSelection[]>([]);
   const [useBatchTime, setUseBatchTime] = useState(false);
   const [batchAllDay, setBatchAllDay] = useState(false);
@@ -119,10 +117,7 @@ export default function Registration() {
         skipNextRaidResetRef.current = false;
         return;
       }
-      const currentWeek = getWeekStartForRaid(new Date(), selectedRaid);
-      const nextWeek = new Date(currentWeek);
-      nextWeek.setDate(nextWeek.getDate() + 7);
-      setSelectedWeek(formatDate(nextWeek));
+      setSelectedWeek(formatDate(getWeekStartForRaid(new Date(), selectedRaid)));
       setCharacters([defaultChar(selectedRaid)]);
       setDateSelections([]);
       setUseBatchTime(false);
