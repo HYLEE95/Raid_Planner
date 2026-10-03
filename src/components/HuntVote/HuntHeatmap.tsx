@@ -82,7 +82,7 @@ export default function HuntHeatmap({ heatmap, weekDates, selected, onSelect, as
                   {dateStrs.map(ds => {
                     const voters = heatmap.get(heatmapKey(ds, start)) ?? [];
                     const count = voters.length;
-                    const hasHighlight = voters.some(v => HIGHLIGHT_CLASSES.includes(v.class_type));
+                    const hasHighlight = voters.some(v => v.characters.some(c => HIGHLIGHT_CLASSES.includes(c.class_type)));
                     const isSel = selected?.date === ds && selected?.start === start;
                     return (
                       <td key={ds} className="p-0.5">
@@ -108,7 +108,7 @@ export default function HuntHeatmap({ heatmap, weekDates, selected, onSelect, as
         </div>
       )}
       <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-2">
-        금색 점은 세바가 1명 이상 가능한 시간대입니다.
+        숫자는 가능한 소유주 수입니다. 금색 점은 세바 캐릭터를 가진 소유주가 1명 이상인 시간대입니다.
       </p>
     </section>
   );

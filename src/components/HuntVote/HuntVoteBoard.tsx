@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildHeatmap, countAssignments, formatExtendedTime, heatmapKey, isAlreadyInSlot } from '../../lib/huntVote';
-import type { HuntVoter } from '../../lib/huntVote';
+import type { HuntCharacter, HuntVoter } from '../../lib/huntVote';
 import { formatDate, getWeekDates, getDayName, getConfirmedRaid, saveConfirmedRaid, generateId } from '../../lib/storage';
 import type { ClassType, DBRegistration, HuntAssignment, HuntParty } from '../../lib/types';
 import { isRaidComposition } from '../../lib/types';
@@ -79,10 +79,11 @@ export default function HuntVoteBoard({ registrations, weekStart }: Props) {
     ? activePartyId
     : slotParties[0]?.id ?? null;
 
-  const disabledNicknames = useMemo(() => {
+  /** 이 슬롯에 이미 캐릭터가 배정된 소유주. 한 소유주는 동시에 한 캐릭터만 움직일 수 있다. */
+  const disabledOwners = useMemo(() => {
     const set = new Set<string>();
     if (!selected) return set;
-    for (const p of slotParties) for (const m of p.members) if (!m.isMercenary) set.add(m.nickname);
+    for (const p of slotParties) for (const m of p.members) if (!m.isMercenary) set.add(m.ownerName);
     return set;
   }, [slotParties, selected]);
 
@@ -111,15 +112,15 @@ export default function HuntVoteBoard({ registrations, weekStart }: Props) {
     setActivePartyId(id);
   };
 
-  const pickVoter = (v: HuntVoter) => {
+  const pickVoter = (v: HuntVoter, c: HuntCharacter) => {
     if (!selected) return;
     const targetId = activeId;
     if (!targetId) return;
-    if (isAlreadyInSlot(assignment, selected.date, selected.start, v.nickname)) return;
+    if (isAlreadyInSlot(assignment, selected.date, selected.start, v.ownerName)) return;
     updateSlotParties(ps => ps.map(p => {
       if (p.id !== targetId) return p;
       if (p.members.length >= p.capacity) return p;
-      return { ...p, members: [...p.members, { nickname: v.nickname, class_type: v.class_type, ownerName: v.ownerName }] };
+      return { ...p, members: [...p.members, { nickname: c.nickname, class_type: c.class_type, ownerName: v.ownerName }] };
     }));
   };
 
@@ -176,7 +177,7 @@ export default function HuntVoteBoard({ registrations, weekStart }: Props) {
           <HuntVoterList
             voters={voters}
             assignedCounts={assignedCounts}
-            disabled={disabledNicknames}
+            disabled={disabledOwners}
             onPick={slotParties.length > 0 ? pickVoter : undefined}
           />
 

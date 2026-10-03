@@ -99,7 +99,7 @@ describe('buildHeatmap', () => {
     expect(map.get(heatmapKey('2026-10-01', '20:30'))).toHaveLength(1);
   });
 
-  it('여러 소유주의 캐릭터를 합산한다', () => {
+  it('여러 소유주를 합산한다', () => {
     const map = buildHeatmap(
       [
         reg('갑', [{ nickname: '가캐', class_type: '세바' }], [
@@ -114,7 +114,7 @@ describe('buildHeatmap', () => {
     expect(map.get(heatmapKey('2026-10-01', '20:00'))).toHaveLength(2);
   });
 
-  it('직업군 정의 순서로 정렬하고 세바를 맨 앞에 둔다', () => {
+  it('캐릭터가 여럿인 소유주도 1명으로 세고, 캐릭터는 직업군 순서로 담는다', () => {
     const map = buildHeatmap(
       [reg('갑', [
         { nickname: '퓨캐', class_type: '퓨파' },
@@ -122,8 +122,21 @@ describe('buildHeatmap', () => {
       ], [{ date: '2026-10-01', start_time: '20:00', end_time: '21:00' }])],
       dates
     );
-    expect(map.get(heatmapKey('2026-10-01', '20:00'))!.map(v => v.class_type))
-      .toEqual(['세바', '퓨파']);
+    const list = map.get(heatmapKey('2026-10-01', '20:00'))!;
+    expect(list).toHaveLength(1);
+    expect(list[0].characters.map(c => c.class_type)).toEqual(['세바', '퓨파']);
+  });
+
+  it('소유주는 이름순으로 정렬한다', () => {
+    const slot = [{ date: '2026-10-01', start_time: '20:00', end_time: '21:00' }];
+    const map = buildHeatmap(
+      [
+        reg('을', [{ nickname: '나캐', class_type: '거너' }], slot),
+        reg('갑', [{ nickname: '가캐', class_type: '세바' }], slot),
+      ],
+      dates
+    );
+    expect(map.get(heatmapKey('2026-10-01', '20:00'))!.map(v => v.ownerName)).toEqual(['갑', '을']);
   });
 
   it('주차 밖 날짜는 집계하지 않는다', () => {
@@ -170,12 +183,12 @@ describe('countAssignments', () => {
     ],
   };
 
-  it('여러 슬롯의 배정 횟수를 합산한다', () => {
-    expect(countAssignments(assignment).get('가캐')).toBe(2);
+  it('여러 슬롯의 배정 횟수를 소유주별로 합산한다', () => {
+    expect(countAssignments(assignment).get('갑')).toBe(2);
   });
 
   it('외부 용병은 집계에서 제외한다', () => {
-    expect(countAssignments(assignment).has('용병1')).toBe(false);
+    expect(countAssignments(assignment).has('용병')).toBe(false);
   });
 });
 
@@ -190,15 +203,27 @@ describe('isAlreadyInSlot', () => {
     }],
   };
 
-  it('같은 슬롯의 다른 파티에 있으면 참이다', () => {
-    expect(isAlreadyInSlot(assignment, '2026-10-01', '20:00', '가캐')).toBe(true);
+  it('같은 슬롯에 그 소유주의 캐릭터가 있으면 참이다 (다른 캐릭터를 넣으려 해도)', () => {
+    expect(isAlreadyInSlot(assignment, '2026-10-01', '20:00', '갑')).toBe(true);
   });
 
   it('다른 슬롯이면 거짓이다', () => {
-    expect(isAlreadyInSlot(assignment, '2026-10-02', '20:00', '가캐')).toBe(false);
+    expect(isAlreadyInSlot(assignment, '2026-10-02', '20:00', '갑')).toBe(false);
   });
 
-  it('없는 캐릭터면 거짓이다', () => {
-    expect(isAlreadyInSlot(assignment, '2026-10-01', '20:00', '없캐')).toBe(false);
+  it('배정되지 않은 소유주면 거짓이다', () => {
+    expect(isAlreadyInSlot(assignment, '2026-10-01', '20:00', '을')).toBe(false);
+  });
+
+  it('용병은 소유주 판정에 쓰지 않는다', () => {
+    const withMerc: HuntAssignment = {
+      slots: [{
+        date: '2026-10-01', start_time: '20:00',
+        parties: [{ id: 'p1', capacity: 4, members: [
+          { nickname: '용병1', class_type: '거너', ownerName: '용병', isMercenary: true },
+        ] }],
+      }],
+    };
+    expect(isAlreadyInSlot(withMerc, '2026-10-01', '20:00', '용병')).toBe(false);
   });
 });

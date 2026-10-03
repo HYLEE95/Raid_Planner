@@ -5,10 +5,15 @@ const SLOT_MINUTES = 30;
 const HUNT_START_MIN = 9 * 60;    // 09:00
 const HUNT_END_MIN = 25 * 60;     // 익일 01:00
 
-export interface HuntVoter {
+export interface HuntCharacter {
   nickname: string;
   class_type: ClassType;
+}
+
+/** 투표 단위는 소유주다. 배정 시 그중 한 캐릭터를 고른다. */
+export interface HuntVoter {
   ownerName: string;
+  characters: HuntCharacter[];
 }
 
 function toMinutes(t: string): number {
@@ -50,72 +55,71 @@ export function heatmapKey(date: string, slotStart: string): string {
   return `${date}|${slotStart}`;
 }
 
-/** (날짜, 30분 슬롯) -> 그 시간에 가능한 캐릭터 목록. 같은 캐릭터는 1회만 센다. */
+/** (날짜, 30분 슬롯) -> 그 시간에 가능한 소유주 목록. 같은 소유주는 1회만 센다. */
 export function buildHeatmap(
   regs: DBRegistration[],
   weekDates: string[]
 ): Map<string, HuntVoter[]> {
   const dateSet = new Set(weekDates);
-  const map = new Map<string, HuntVoter[]>();
-  const seen = new Map<string, Set<string>>();
+  const byKey = new Map<string, Map<string, HuntVoter>>();
 
   for (const reg of regs) {
+    if (reg.characters.length === 0) continue;
     for (const ts of reg.time_slots) {
       if (!dateSet.has(ts.date)) continue;
       for (const bucket of bucketsForSlot(ts)) {
         const key = heatmapKey(ts.date, bucket);
-        if (!map.has(key)) {
-          map.set(key, []);
-          seen.set(key, new Set());
+        if (!byKey.has(key)) byKey.set(key, new Map());
+        const owners = byKey.get(key)!;
+        if (!owners.has(reg.owner_name)) {
+          owners.set(reg.owner_name, { ownerName: reg.owner_name, characters: [] });
         }
-        const names = seen.get(key)!;
+        const voter = owners.get(reg.owner_name)!;
         for (const c of reg.characters) {
-          if (names.has(c.nickname)) continue;
-          names.add(c.nickname);
-          map.get(key)!.push({
-            nickname: c.nickname,
-            class_type: c.class_type,
-            ownerName: reg.owner_name,
-          });
+          if (voter.characters.some(x => x.nickname === c.nickname)) continue;
+          voter.characters.push({ nickname: c.nickname, class_type: c.class_type });
         }
       }
     }
   }
 
   const order = CLASS_TYPES_BY_RAID['정규사냥'];
-  for (const list of map.values()) {
-    list.sort((a, b) => {
-      const d = order.indexOf(a.class_type) - order.indexOf(b.class_type);
-      return d !== 0 ? d : a.nickname.localeCompare(b.nickname, 'ko');
-    });
+  const map = new Map<string, HuntVoter[]>();
+  for (const [key, owners] of byKey) {
+    const list = [...owners.values()];
+    for (const v of list) {
+      v.characters.sort((a, b) => order.indexOf(a.class_type) - order.indexOf(b.class_type));
+    }
+    list.sort((a, b) => a.ownerName.localeCompare(b.ownerName, 'ko'));
+    map.set(key, list);
   }
   return map;
 }
 
-/** 캐릭터별 총 배정 횟수. 외부 용병은 세지 않는다. */
+/** 소유주별 총 배정 횟수. 외부 용병은 세지 않는다. */
 export function countAssignments(a: HuntAssignment): Map<string, number> {
   const counts = new Map<string, number>();
   for (const slot of a.slots) {
     for (const party of slot.parties) {
       for (const m of party.members) {
         if (m.isMercenary) continue;
-        counts.set(m.nickname, (counts.get(m.nickname) ?? 0) + 1);
+        counts.set(m.ownerName, (counts.get(m.ownerName) ?? 0) + 1);
       }
     }
   }
   return counts;
 }
 
-/** 같은 슬롯 안에 이미 배정된 캐릭터인지. 파티가 달라도 참이다. */
+/** 같은 슬롯 안에 그 소유주의 캐릭터가 이미 배정됐는지. 파티·캐릭터가 달라도 참이다. */
 export function isAlreadyInSlot(
   a: HuntAssignment,
   date: string,
   start: string,
-  nickname: string
+  ownerName: string
 ): boolean {
   const slot = a.slots.find(s => s.date === date && s.start_time === start);
   if (!slot) return false;
   return slot.parties.some(p =>
-    p.members.some(m => !m.isMercenary && m.nickname === nickname)
+    p.members.some(m => !m.isMercenary && m.ownerName === ownerName)
   );
 }
